@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Launcher do commente.me: cria o venv na primeira execução e roda a TUI.
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV="$DIR/.venv"
+PY="$VENV/bin/python"
+
+if [ ! -x "$PY" ]; then
+  echo "[commente.me] criando ambiente virtual (.venv)…"
+  python3 -m venv "$VENV"
+  "$PY" -m pip install --upgrade pip >/dev/null
+  echo "[commente.me] instalando dependências…"
+  "$PY" -m pip install -r "$DIR/requirements.txt"
+fi
+
+export PYTHONPATH="$DIR/src${PYTHONPATH:+:$PYTHONPATH}"
+exec "$PY" -m commenteme "$@"
