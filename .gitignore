@@ -18,3 +18,7 @@ prebuilds/
 .DS_Store
 *.log
 npm-debug.log*
+
+# spurious pnpm files (this project uses npm + package-lock.json)
+pnpm-lock.yaml
+pnpm-workspace.yaml
