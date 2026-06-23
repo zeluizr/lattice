@@ -33,6 +33,7 @@ const cli = meow(
 `,
   {
     importMeta: import.meta,
+    description: false,
     flags: {
       power: { type: "boolean", default: true },
       interval: { type: "number", shortFlag: "i", default: 1 },
