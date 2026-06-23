@@ -1,28 +1,29 @@
 #!/usr/bin/env bash
-# (Opcional) Libera `powermetrics` via sudo SEM pedir senha, para que o
-# commente.me mostre watts sem você digitar a senha toda vez.
+# (Optional) Allow `powermetrics` via sudo WITHOUT a password, so lattice can
+# show watts without you typing your password every time.
 #
-# Cria /etc/sudoers.d/commenteme-powermetrics. Rode com:  sudo bash scripts/setup-sudoers.sh
+# Creates /etc/sudoers.d/lattice-powermetrics. Run with:
+#   sudo bash scripts/setup-sudoers.sh
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
-  echo "Rode com sudo: sudo bash scripts/setup-sudoers.sh" >&2
+  echo "Run with sudo: sudo bash scripts/setup-sudoers.sh" >&2
   exit 1
 fi
 
 USER_NAME="${SUDO_USER:-$(whoami)}"
 PM="$(command -v powermetrics || echo /usr/bin/powermetrics)"
-FILE="/etc/sudoers.d/commenteme-powermetrics"
+FILE="/etc/sudoers.d/lattice-powermetrics"
 
 echo "${USER_NAME} ALL=(root) NOPASSWD: ${PM}" > "$FILE"
 chmod 0440 "$FILE"
 
-# valida a sintaxe; se inválida, remove para não travar o sudo
+# validate syntax; if invalid, remove so it can't break sudo
 if visudo -cf "$FILE" >/dev/null; then
-  echo "OK: ${USER_NAME} pode rodar ${PM} sem senha."
-  echo "Agora rode:  ./commente.me"
+  echo "OK: ${USER_NAME} can run ${PM} without a password."
+  echo "Now run:  lattice"
 else
   rm -f "$FILE"
-  echo "Sintaxe inválida — arquivo removido." >&2
+  echo "Invalid syntax — file removed." >&2
   exit 1
 fi

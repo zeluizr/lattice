@@ -1,139 +1,141 @@
-# commente.me
+<div align="center">
 
-Dashboard de **sistema, GPU, energia, custo de IA e VTEX em tempo real** direto no terminal — feito para **macOS Apple Silicon** (M1/M2/M3/M4). Interface TUI completa (Textual) com gráficos ao vivo (sparklines), tabela de processos e um **chat com o Claude** que enxerga as métricas da tela.
+# ◇ lattice
 
-No Apple Silicon não existe `nvidia-smi`. Os dados vêm do próprio macOS e de logs locais:
+**A real-time terminal dashboard for macOS Apple Silicon.**
 
-| Painel | Fonte | Precisa de sudo? |
-| --- | --- | --- |
-| GPU: uso %, memória usada/alocada | `ioreg` (IOAccelerator) | ❌ não |
-| CPU, RAM, swap, disco, rede, processos | `psutil` | ❌ não |
-| Temperatura CPU/GPU + ventoinha (RPM) | SMC via IOKit (`ctypes`) | ❌ não |
-| Bateria (%/saúde/ciclos/temp) | `psutil` + `ioreg` (AppleSmartBattery) | ❌ não |
-| Energia (watts CPU/GPU/ANE), freq. GPU, pressão térmica | `powermetrics` | ✅ sim |
-| IA · tokens/custo de hoje (Claude Code) | `~/.claude/projects/**/*.jsonl` | ❌ não |
-| VTEX: conta, usuário, workspace | `~/.config/configstore/vtex.json` | ❌ não |
-| Chat com o Claude | API Messages (`anthropic`) | precisa de credencial |
+GPU · power · temps & fans · system metrics · AI token cost — plus a built-in
+Claude assistant that sees your live metrics.
 
-> **Temperatura e ventoinha** são lidas do SMC (IOKit) — funcionam **sem sudo**. Em desktops
-> (Mac mini/Studio) o painel de bateria mostra "sem bateria"; num MacBook ele mostra
-> %/saúde/ciclos/tempo restante automaticamente.
+[![npm](https://img.shields.io/npm/v/%40zeluizr%2Flattice?color=9580FF)](https://www.npmjs.com/package/@zeluizr/lattice)
+[![license](https://img.shields.io/badge/license-MIT-FF80BF)](./LICENSE)
+[![node](https://img.shields.io/badge/node-%E2%89%A518-80FFEA)](https://nodejs.org)
+[![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-8AFF80)](#requirements)
 
-## Como rodar
+*Watch your machine think.* — [read the manifesto](./MANIFESTO.md)
 
-```bash
-# com watts (pede a senha do sudo no início)
-./commente.me
+</div>
 
-# 100% sem sudo (sem watts; GPU%/memória continuam funcionando)
-./commente.me --no-power
-```
+---
 
-Na primeira execução o launcher cria um `.venv` e instala as dependências sozinho.
+## Install & run
 
-### Opções
-
-```
---no-power        não usar powermetrics/sudo
---interval N      intervalo de atualização em segundos (padrão: 1.0)
---procs N         quantidade de processos no topo (padrão: 8)
-```
-
-### Teclas
-
-- `q` sair · `p` pausar · `+` mais rápido · `-` mais lento
-- Clique no campo de baixo (ou tecle no input) para perguntar ao Claude · `Enter` envia
-
-## Tema (Dracula Pro) & fonte
-
-O visual usa o tema **Dracula Pro** (cards com título na borda, cor de destaque por
-painel, ícones Nerd Font). O terminal precisa de **truecolor** (Warp, iTerm2, Ghostty,
-kitty têm) e, para os ícones, de uma **Nerd Font**.
-
-**Fonte (ícones):** o app não controla a fonte — o terminal controla. No Warp:
-*Settings → Appearance → Text → Font → `MesloLGS NF`* (ou outra Nerd Font). Sem Nerd
-Font, rode com emoji ou sem ícones:
+No install needed — run it straight from npm:
 
 ```bash
-./commente.me --icons emoji   # 🖥️ 🎮 🔋 … (qualquer fonte)
-./commente.me --icons none    # só texto
+npx @zeluizr/lattice
 ```
 
-**Cores Dracula Pro:** o tema já vem com os hex oficiais do **Dracula Pro**. Para trocar
-a variante, edite uma linha em `src/commenteme/theme.py`:
-
-```python
-VARIANT = "pro"   # pro · blade · buffy · lincoln · morbius · van-helsing
-```
-
-Os accents (cyan, green, orange, pink, purple, red, yellow + foreground) são iguais em
-todas as variantes; só Background/Comment/Selection mudam.
-
-## Painel de IA (tokens/custo de hoje)
-
-Lê os logs locais do Claude Code (`~/.claude/projects/**/*.jsonl`) e soma os tokens do dia
-(input/output/cache) por modelo, calculando o custo com a tabela oficial da Anthropic
-(Opus 4.8 $5/$25, Sonnet 4.6 $3/$15, Haiku 4.5 $1/$5 por 1M; cache-write 1.25×, cache-read 0.1×).
-Tudo local, sem rede.
-
-## Painel VTEX
-
-Lê a sessão salva da VTEX CLI (o mesmo arquivo que o `vtex whoami` usa) — sem rodar a CLI
-(que é interativa). Mostra conta/usuário/workspace quando logado, ou "não logado". Acende
-sozinho assim que você roda `vtex login <conta>`.
-
-## Chat com o Claude (Haiku 4.5)
-
-O campo na base da tela manda sua pergunta para o Claude **com o snapshot ao vivo** do
-dashboard injetado (CPU, GPU, RAM, rede, disco, energia, tokens, VTEX) — então dá para
-perguntar "por que a GPU subiu?" e ele vê os números.
-
-### Configurar a credencial
-
-Crie um arquivo `.env` na raiz do projeto (veja `.env.example`):
+Or install it globally so you can just type `lattice`:
 
 ```bash
-cp .env.example .env
-# edite e cole sua API key:
-# ANTHROPIC_API_KEY=sk-ant-api03-...
+npm i -g @zeluizr/lattice
+lattice
 ```
 
-> ⚠️ **Sobre o plano Pro/Max e `claude setup-token`:** a Messages API **recusa tokens OAuth**
-> hoje ("OAuth authentication is currently not supported"). O `claude setup-token` serve para o
-> Claude Code, não para apps próprios. Para o chat funcionar use uma **API key do console**
-> (https://console.anthropic.com → API Keys). Com Haiku 4.5 cada pergunta custa frações de centavo.
-> O código já aceita um token `sk-ant-oat...` para o dia em que a Anthropic habilitar OAuth na API.
+On first run, lattice asks for your language (English · Español · Português) and
+remembers it. Watts need `sudo` (see below); everything else works without it.
 
-## Watts sem digitar senha (opcional)
+## Usage
+
+```bash
+lattice                      # full dashboard (asks for sudo once, for watts)
+lattice --no-power           # skip sudo; CPU/GPU/RAM/disk/net/temps only
+lattice --interval 2         # refresh every 2s
+lattice --procs 12           # show 12 top processes
+lattice --icons emoji        # nerd | emoji | none
+lattice --lang es            # en | es | pt-BR (persists)
+lattice --theme blade        # pro | blade | buffy | lincoln | morbius | van-helsing
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--no-power` | off | Skip `powermetrics`/sudo (no watts) |
+| `--interval`, `-i` | `1` | Refresh interval in seconds |
+| `--procs`, `-n` | `8` | Number of top processes |
+| `--icons` | `nerd` | Icon style: `nerd`, `emoji`, `none` |
+| `--lang` | *(asked)* | `en`, `es`, `pt-BR` |
+| `--theme` | `pro` | Dracula Pro variant |
+
+### Hotkeys
+
+| Key | Action |
+|-----|--------|
+| `q` | quit |
+| `p` | pause / resume |
+| `+` / `-` | faster / slower refresh |
+| `i` | focus the chat input (type, `Enter` to send, `Esc` to cancel) |
+
+## What it shows
+
+| Panel | Source | Needs sudo |
+|-------|--------|:----------:|
+| GPU usage & memory | `ioreg` (IOAccelerator) | — |
+| CPU, RAM, swap, disk, network, processes | system APIs | — |
+| Temperatures & fans | SMC via IOKit (native helper) | — |
+| Power (watts), GPU freq, thermal pressure | `powermetrics` | **yes** |
+| AI tokens & cost (today) | Claude Code logs (`~/.claude`) | — |
+| VTEX status | VTEX CLI configstore | — |
+| Chat | Anthropic API | needs a key |
+
+Temperatures and fans read straight from the SMC, so they work **without sudo**.
+Desktops (Mac mini / Studio) simply report no battery.
+
+## The AI difference
+
+The chat isn't a generic chatbot — it receives a live snapshot of every panel
+(CPU, GPU, RAM, network, disk, power, temps, token spend, VTEX). Ask
+*"why did the GPU spike?"* and Claude answers from your machine's actual numbers,
+right now. Runs on **Haiku 4.5**, so each question costs a fraction of a cent.
+
+To enable it, provide an Anthropic credential via the environment or a `.env`
+file (in the current directory or `~/.config/lattice/.env`):
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-api03-...
+```
+
+See [`.env.example`](./.env.example). Everything else works without it.
+
+## Languages
+
+lattice ships in **English**, **Español** and **Português (Brasil)**. It asks on
+first run, stores your choice in `~/.config/lattice/config.json`, and you can
+switch any time with `--lang`.
+
+## Themes
+
+Six Dracula Pro variants — `pro` (default), `blade`, `buffy`, `lincoln`,
+`morbius`, `van-helsing`. Switch with `--theme <name>` (persisted). Best in a
+truecolor terminal (Warp, iTerm2, Ghostty, kitty). For Nerd Font icons, use a
+patched font like MesloLGS NF — or pass `--icons emoji` / `--icons none`.
+
+## Passwordless watts (optional)
+
+To skip the sudo prompt for `powermetrics`:
 
 ```bash
 sudo bash scripts/setup-sudoers.sh
 ```
 
-Libera só o `powermetrics` via sudo sem senha. Depois é só `./commente.me`.
+This adds `/etc/sudoers.d/lattice-powermetrics` allowing passwordless
+`powermetrics` for your user.
 
-## Instalar como comando global (opcional)
+## Requirements
 
-```bash
-pipx install .       # ou: pip install .
-commenteme           # mesmo app, instalado no PATH
-```
+- **macOS on Apple Silicon** (M1/M2/M3/M4…). Intel Macs and other OSes are not
+  supported.
+- **Node.js ≥ 18.**
+- A truecolor terminal; optionally a Nerd Font for icons.
 
-## Estrutura
+## Contributing
 
-```
-src/commenteme/
-├── cli.py                 # parsing de args (+ --icons) + pré-autenticação do sudo
-├── app.py                 # TUI (Textual): layout, tema, loops, chat, teclas
-├── theme.py               # tema Dracula Pro (PALETTE → cole seus hex aqui)
-├── icons.py               # ícones nerd/emoji/none
-├── widgets.py             # cards (GraphPanel com sparkline, TextPanel)
-├── chat.py                # cliente do Claude (lê .env, Haiku 4.5, contexto ao vivo)
-└── collectors/
-    ├── system.py          # psutil → CPU/RAM/disco/rede/processos (com taxas)
-    ├── gpu.py             # ioreg → uso% e memória da GPU (sem sudo)
-    ├── sensors.py         # SMC/IOKit → temp CPU/GPU + ventoinha; bateria (sem sudo)
-    ├── power.py           # powermetrics streaming → watts/freq/pressão (sudo)
-    ├── tokens.py          # logs do Claude Code → tokens e custo de hoje
-    └── vtex.py            # sessão da VTEX CLI → conta/usuário/workspace
-```
+Issues and PRs welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). Adding a new
+language is just one file in `src/i18n/`.
+
+## License
+
+MIT © Jose Luiz Rodrigues. See [LICENSE](./LICENSE).
+
+> Previously released as **commente.me** (Python / Textual). The Node/TypeScript
+> rewrite is tagged from `v0-python` onward — see [CHANGELOG](./CHANGELOG.md).

@@ -1,0 +1,75 @@
+{
+  "name": "@zeluizr/lattice",
+  "version": "1.0.0",
+  "description": "Real-time terminal dashboard for macOS Apple Silicon — GPU, power, temps, system metrics, AI token cost, and a built-in Claude assistant that sees your live metrics.",
+  "type": "module",
+  "bin": {
+    "lattice": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "prebuilds",
+    "native/smc.c",
+    "native/build.sh",
+    "scripts/setup-sudoers.sh",
+    "README.md",
+    "MANIFESTO.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "keywords": [
+    "macos",
+    "apple-silicon",
+    "system-monitor",
+    "tui",
+    "terminal",
+    "dashboard",
+    "gpu",
+    "powermetrics",
+    "htop",
+    "ink",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "Jose Luiz Rodrigues",
+  "homepage": "https://github.com/zeluizr/lattice#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zeluizr/lattice.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zeluizr/lattice/issues"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/postbuild.mjs",
+    "build:native": "bash native/build.sh",
+    "dev": "npm run build && node dist/cli.js",
+    "start": "node dist/cli.js",
+    "prepublishOnly": "npm run build:native && npm run build"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
+    "bplist-parser": "^0.3.2",
+    "execa": "^9.6.1",
+    "ink": "^7.1.0",
+    "meow": "^14.1.0",
+    "plist": "^5.0.0",
+    "react": "^19.2.7",
+    "systeminformation": "^5.31.9"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
+    "ink-testing-library": "^4.0.0",
+    "typescript": "^6.0.3"
+  }
+}
