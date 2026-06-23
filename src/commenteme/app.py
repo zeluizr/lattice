@@ -12,7 +12,7 @@ from textual.widgets import DataTable, Footer, Header, Input, RichLog
 from .chat import ChatClient
 from .collectors.gpu import read_gpu
 from .collectors.power import PowerCollector
-from .collectors.sensors import SensorsCollector, read_battery
+from .collectors.sensors import SensorsCollector
 from .collectors.system import SystemCollector
 from .collectors.tokens import TokenCollector
 from .collectors.vtex import read_vtex
@@ -48,39 +48,54 @@ def human_rate(bps) -> str:
     return f"{human_bytes(bps)}/s"
 
 
-def bar(pct, width: int = 16) -> str:
-    pct = max(0.0, min(100.0, float(pct or 0.0)))
-    filled = int(round(pct / 100 * width))
-    return "█" * filled + "░" * (width - filled)
-
-
-def tinted_bar(pct, width: int = 14) -> str:
-    """Barra colorida por faixa: verde <60, amarelo <85, vermelho >=85."""
-    pct = max(0.0, min(100.0, float(pct or 0.0)))
-    filled = int(round(pct / 100 * width))
-    color = _P["green"] if pct < 60 else _P["yellow"] if pct < 85 else _P["red"]
-    return (
-        f"[{color}]{'█' * filled}[/]"
-        f"[{_P['comment']}]{'░' * (width - filled)}[/]"
-    )
-
-
 def core_cell(pct) -> str:
     idx = int(max(0.0, min(100.0, float(pct or 0.0))) / 100 * (len(_BLOCKS) - 1))
     return _BLOCKS[idx]
 
 
+def status(value, warn, crit, words) -> str:
+    """Sinal ● + palavra, colorido por faixa (verde/amarelo/vermelho).
+
+    Diz num relance se está tranquilo, pedindo atenção ou em alerta —
+    sem precisar saber o que o número significa.
+    """
+    v = float(value or 0)
+    if v < warn:
+        c, word = _P["green"], words[0]
+    elif v < crit:
+        c, word = _P["yellow"], words[1]
+    else:
+        c, word = _P["red"], words[2]
+    return f"[{c}]● {word}[/]"
+
+
+def range_caption(history, fmt) -> str:
+    """Legenda do gráfico em linguagem simples: a faixa do último minuto."""
+    data = [x for x in history if x is not None]
+    if not data:
+        return f"[{_P['comment']}]coletando…[/]"
+    lo, hi = min(data), max(data)
+    body = fmt(lo) if lo == hi else f"{fmt(lo)}–{fmt(hi)}"
+    return f"[{_P['comment']}]último min: {body}[/]"
+
+
 class DashboardApp(App):
     TITLE = "commente.me"
     SUB_TITLE = "monitor de sistema · GPU · energia"
+    # Cor fixa em Dracula Pro: sem command palette (^p) para trocar tema/cores.
+    ENABLE_COMMAND_PALETTE = False
 
     CSS = """
     Screen { background: $background; }
     #root { height: 1fr; background: $background; }
+    /* alturas fixas por linha → todos os cards da linha têm a mesma altura.
+       linha de métricas (com gráfico) = 9; linha de info (só texto) = 6. */
     .row { height: auto; }
+    .row.metrics { height: 9; }
+    .row.info    { height: 7; }
     .row > * {
         width: 1fr;
-        height: auto;
+        height: 1fr;
         background: $surface;
         color: $foreground;
         border: round $comment;
@@ -89,7 +104,8 @@ class DashboardApp(App):
         padding: 0 1;
         margin: 1 1 0 1;
     }
-    Sparkline { height: 3; margin-top: 1; }
+    Sparkline { height: 3; margin-top: 0; }
+    .spark-caption { height: 1; color: $comment; }
 
     #cpu  { border: round $cyan;   border-title-color: $cyan; }
     #gpu  { border: round $purple; border-title-color: $purple; }
@@ -98,12 +114,13 @@ class DashboardApp(App):
     #pwr  { border: round $orange; border-title-color: $orange; }
     #tok  { border: round $pink;   border-title-color: $pink; }
     #vtex { border: round $purple; border-title-color: $purple; }
-    #bat  { border: round $green;  border-title-color: $green; }
 
     #cpu Sparkline > .sparkline--max-color { color: $cyan; }
     #cpu Sparkline > .sparkline--min-color { color: $cyan 30%; }
     #gpu Sparkline > .sparkline--max-color { color: $purple; }
     #gpu Sparkline > .sparkline--min-color { color: $purple 30%; }
+    #mem Sparkline > .sparkline--max-color { color: $green; }
+    #mem Sparkline > .sparkline--min-color { color: $green 30%; }
     #io  Sparkline > .sparkline--max-color { color: $cyan; }
     #io  Sparkline > .sparkline--min-color { color: $cyan 30%; }
     #pwr Sparkline > .sparkline--max-color { color: $orange; }
@@ -165,31 +182,30 @@ class DashboardApp(App):
 
         self.h_cpu: deque[float] = deque(maxlen=60)
         self.h_gpu: deque[float] = deque(maxlen=60)
+        self.h_mem: deque[float] = deque(maxlen=60)
         self.h_net: deque[float] = deque(maxlen=60)
         self.h_temp: deque[float] = deque(maxlen=60)
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with VerticalScroll(id="root"):
-            with Horizontal(classes="row"):
+            with Horizontal(classes="row metrics"):
                 self.p_cpu = GraphPanel(f"{ic('cpu')} CPU", id="cpu")
-                self.p_gpu = GraphPanel(f"{ic('gpu')} GPU", id="gpu")
+                self.p_mem = GraphPanel(f"{ic('mem')} MEMÓRIA", id="mem")
                 yield self.p_cpu
-                yield self.p_gpu
-            with Horizontal(classes="row"):
-                self.p_mem = TextPanel(f"{ic('mem')} MEMÓRIA", id="mem")
-                self.p_io = GraphPanel(f"{ic('net')} REDE · DISCO", id="io")
-                self.p_pwr = GraphPanel(f"{ic('temp')} ENERGIA · TÉRMICO", id="pwr")
                 yield self.p_mem
-                yield self.p_io
+            with Horizontal(classes="row metrics"):
+                self.p_pwr = GraphPanel(f"{ic('temp')} TEMPERATURA", id="pwr")
+                self.p_io = GraphPanel(f"{ic('net')} REDE · DISCO", id="io")
+                self.p_gpu = GraphPanel(f"{ic('gpu')} GPU", id="gpu")
                 yield self.p_pwr
-            with Horizontal(classes="row"):
+                yield self.p_io
+                yield self.p_gpu
+            with Horizontal(classes="row info"):
                 self.p_tok = TextPanel(f"{ic('tokens')} IA · TOKENS HOJE", id="tok")
                 self.p_vtex = TextPanel(f"{ic('vtex')} VTEX", id="vtex")
-                self.p_bat = TextPanel(f"{ic('battery')} BATERIA", id="bat")
                 yield self.p_tok
                 yield self.p_vtex
-                yield self.p_bat
             self.proc_table = DataTable(id="procs", zebra_stripes=True)
             self.proc_table.border_title = f"{ic('proc')} PROCESSOS"
             yield self.proc_table
@@ -231,73 +247,78 @@ class DashboardApp(App):
         g = read_gpu()
         p = self.power.read() if self.power else None
 
-        # ---- CPU
-        self.h_cpu.append(s["cpu_total"])
+        # ---- CPU  (uso total + carga por núcleo)
+        cpu = s["cpu_total"]
+        self.h_cpu.append(cpu)
         cores = "".join(core_cell(c) for c in s["cpu_per"])
-        self.p_cpu.update(f"[b]{s['cpu_total']:.0f}%[/b]  ({len(s['cpu_per'])} cores)\n{cores}", self.h_cpu)
-
-        # ---- GPU
-        util = g["util_pct"] or 0
-        self.h_gpu.append(util)
-        gw = f" · {p['gpu_w']:.1f}W" if p and p.get("gpu_w") is not None else ""
-        gf = f" · {p['gpu_freq_mhz']:.0f}MHz" if p and p.get("gpu_freq_mhz") else ""
-        self.p_gpu.update(
-            f"[b]{util}%[/b]{gw}{gf}\n"
-            f"mem {human_bytes(g['mem_used_bytes'])} / {human_bytes(g['mem_alloc_bytes'])}",
-            self.h_gpu,
+        self.p_cpu.update(
+            f"Uso: [b]{cpu:.0f}%[/b]   {status(cpu, 60, 85, ('tranquilo', 'ocupado', 'sobrecarga'))}\n"
+            f"Núcleos: {len(s['cpu_per'])}   por núcleo: {cores}",
+            self.h_cpu,
+            range_caption(self.h_cpu, lambda v: f"{v:.0f}%"),
         )
 
-        # ---- MEMÓRIA
+        # ---- MEMÓRIA  (RAM em uso + swap)
         vm, sm = s["mem"], s["swap"]
+        self.h_mem.append(vm.percent)
         self.p_mem.update(
-            f"RAM  {tinted_bar(vm.percent)} {vm.percent:.0f}%\n"
-            f"     {human_bytes(vm.used)} / {human_bytes(vm.total)}\n"
-            f"{ic('swap')} Swap {tinted_bar(sm.percent)} {sm.percent:.0f}%"
+            f"RAM: [b]{vm.percent:.0f}%[/b]   {status(vm.percent, 75, 90, ('ok', 'atento', 'cheia'))}\n"
+            f"{human_bytes(vm.used)} de {human_bytes(vm.total)} usados · swap {sm.percent:.0f}%",
+            self.h_mem,
+            range_caption(self.h_mem, lambda v: f"{v:.0f}%"),
         )
 
-        # ---- REDE / DISCO
+        # ---- REDE / DISCO  (tráfego de rede + quanto o disco está cheio)
         net_total_mb = (s["net_recv_bps"] + s["net_sent_bps"]) / 1024 / 1024
         self.h_net.append(net_total_mb)
+        vol = s["disk_usage"].percent
         self.p_io.update(
-            f"{ic('net')} ↓ {human_rate(s['net_recv_bps'])}   ↑ {human_rate(s['net_sent_bps'])}\n"
-            f"{ic('disk')} R {human_rate(s['disk_read_bps'])}  W {human_rate(s['disk_write_bps'])}\n"
-            f"vol /  {tinted_bar(s['disk_usage'].percent)} {s['disk_usage'].percent:.0f}%",
+            f"{ic('net')} ↓ {human_rate(s['net_recv_bps'])}  ↑ {human_rate(s['net_sent_bps'])}\n"
+            f"{ic('disk')} Disco {vol:.0f}% cheio  {status(vol, 80, 92, ('ok', 'enchendo', 'cheio'))}",
             self.h_net,
+            range_caption(self.h_net, lambda v: human_rate(v * 1024 * 1024)),
         )
 
-        # ---- ENERGIA · TÉRMICO  (watts = sudo; temp/ventoinha = SMC sem sudo)
+        # ---- GPU  (uso + memória)
+        util = g["util_pct"] or 0
+        self.h_gpu.append(util)
+        self.p_gpu.update(
+            f"Uso: [b]{util}%[/b]   {status(util, 60, 85, ('tranquila', 'ativa', 'alta'))}\n"
+            f"mem {human_bytes(g['mem_used_bytes'])}/{human_bytes(g['mem_alloc_bytes'])}",
+            self.h_gpu,
+            range_caption(self.h_gpu, lambda v: f"{v:.0f}%"),
+        )
+
+        # ---- TEMPERATURA  (temp/ventoinha via SMC sem sudo; watts via powermetrics)
         st = self.sensors.read()
-        lines = []
-        if p:
-            def w(x):
-                return f"{x:.1f}W" if x is not None else "—"
-
-            lines.append(f"{ic('power')} CPU {w(p.get('cpu_w'))}  GPU {w(p.get('gpu_w'))}  ANE {w(p.get('ane_w'))}")
-        elif self.use_power:
-            lines.append(f"{ic('power')} watts: aguardando sudo…")
-        else:
-            lines.append(f"{ic('power')} watts: --no-power")
-
         ct = st.get("cpu_temp")
         gt = st.get("gpu_temp")
-        if ct is not None or gt is not None:
-            if ct is not None and gt is not None:
-                lines.append(f"{ic('temp')} CPU {ct:.0f}°C   GPU {gt:.0f}°C")
-            else:
-                lines.append(f"{ic('temp')} {(ct if ct is not None else gt):.0f}°C")
+        temp_words = ("normal", "morna", "quente")
+        if ct is not None and gt is not None:
+            line1 = f"{ct:.0f}° / {gt:.0f}°   {status(max(ct, gt), 65, 80, temp_words)}"
+        elif ct is not None or gt is not None:
+            tv = ct if ct is not None else gt
+            line1 = f"{tv:.0f}°C   {status(tv, 65, 80, temp_words)}"
+        else:
+            line1 = "sensores indisponíveis"
+
+        parts = []
+        if p and (p.get("cpu_w") is not None or p.get("gpu_w") is not None):
+            parts.append(f"{ic('power')} {(p.get('cpu_w') or 0):.1f}+{(p.get('gpu_w') or 0):.1f}W")
+        elif self.use_power:
+            parts.append(f"{ic('power')} aguardando sudo")
         if st.get("fans"):
-            f0 = st["fans"][0]
-            extra = f" (+{len(st['fans']) - 1})" if len(st["fans"]) > 1 else ""
-            lines.append(f"{ic('fan')} {f0['rpm']:.0f} rpm · {f0['pct']:.0f}%{extra}")
-        elif not st.get("ok"):
-            lines.append("temp/ventoinha: n/d")
-        if p and p.get("thermal"):
-            lines.append(f"pressão: {p['thermal']}")
+            parts.append(f"{ic('fan')} {st['fans'][0]['rpm']:.0f} rpm")
+        line2 = " · ".join(parts) if parts else "energia: requer sudo"
 
         temp_val = ct if ct is not None else gt
         if temp_val is not None:
             self.h_temp.append(temp_val)
-        self.p_pwr.update("\n".join(lines), self.h_temp)
+        self.p_pwr.update(
+            f"{line1}\n{line2}",
+            self.h_temp,
+            range_caption(self.h_temp, lambda v: f"{v:.0f}°"),
+        )
 
         if ct is not None:
             self.snapshot["Temperatura"] = (
@@ -333,60 +354,43 @@ class DashboardApp(App):
         # ---- IA / tokens (Claude Code, hoje)
         t = self.tokens.read()
         total = t["input"] + t["output"] + t["cache_w"] + t["cache_r"]
-        models = " · ".join(
-            f"{k} ${v['cost']:.2f}" for k, v in sorted(t["by_model"].items())
-        ) or "—"
+        items = sorted(t["by_model"].items(), key=lambda kv: -kv[1]["cost"])
+        parts = [f"{k.replace('claude-', '')} ${v['cost']:.2f}" for k, v in items[:2]]
+        extra = f" +{len(items) - 2}" if len(items) > 2 else ""
+        models = (" · ".join(parts) + extra) if parts else "—"
         web = ""
         if t["web_search"] or t["web_fetch"]:
-            web = f"\nweb: {t['web_search']} search · {t['web_fetch']} fetch"
+            web = f" · web {t['web_search']}/{t['web_fetch']}"
+
+        def clamp(s: str, width: int = 40) -> str:  # evita quebra de linha no card
+            return s if len(s) <= width else s[: width - 1] + "…"
+
         self.p_tok.update(
-            f"[b]${t['cost']:.2f}[/b]  ·  {fmt_tok(total)} tok  ·  {t['messages']} msgs\n"
-            f"in {fmt_tok(t['input'])}   out {fmt_tok(t['output'])}\n"
-            f"cache w {fmt_tok(t['cache_w'])}   r {fmt_tok(t['cache_r'])}\n"
-            f"{models}{web}"
+            f"Gasto hoje: [b]${t['cost']:.2f}[/b]  ·  {t['messages']} mensagens\n"
+            + clamp(f"Tokens: {fmt_tok(total)} · entrada {fmt_tok(t['input'])} · saída {fmt_tok(t['output'])}") + "\n"
+            + clamp(f"Cache: grava {fmt_tok(t['cache_w'])} · lê {fmt_tok(t['cache_r'])}") + "\n"
+            + clamp(f"Por modelo: {models}{web}")
         )
 
         # ---- VTEX
         v = read_vtex()
         if not v["installed"]:
-            self.p_vtex.update("CLI não instalada\nbrew install vtex/cli/vtex")
+            self.p_vtex.update(
+                f"Status: [{_P['red']}]CLI não instalada[/]\n"
+                "Instale com: brew install vtex/cli/vtex"
+            )
         elif v["logged_in"]:
             self.p_vtex.update(
-                f"CLI ok ✓\n"
-                f"conta: [b]{v['account']}[/b]\n"
-                f"user:  {v['login'] or '—'}\n"
-                f"workspace: {v['workspace'] or 'master'}"
+                f"Status: [{_P['green']}]conectado ✓[/]\n"
+                f"Conta: [b]{v['account']}[/b]\n"
+                f"Usuário: {v['login'] or '—'}\n"
+                f"Workspace: {v['workspace'] or 'master'}"
             )
         else:
-            self.p_vtex.update("CLI ok ✓ · não logado\nrode: vtex login <conta>")
-
-        # ---- BATERIA
-        b = read_battery()
-        if not b["present"]:
-            self.p_bat.update("desktop · na tomada\n(sem bateria)")
-            self.snapshot["Bateria"] = "desktop (AC), sem bateria"
-        else:
-            if b["charging"]:
-                status = "carregando"
-            elif b["plugged"]:
-                status = "na tomada (cheia)" if b["percent"] >= 99 else "na tomada"
-            else:
-                status = "na bateria"
-            secs = b.get("secsleft")
-            tline = ""
-            if isinstance(secs, int) and secs > 0:
-                tline = f"  ~{secs // 3600}h{(secs % 3600) // 60:02d}"
-            extra = []
-            if b.get("health") is not None:
-                extra.append(f"saúde {b['health']:.0f}%")
-            if b.get("cycles") is not None:
-                extra.append(f"{b['cycles']} ciclos")
-            if b.get("temp_c") is not None:
-                extra.append(f"{b['temp_c']:.0f}°C")
-            self.p_bat.update(
-                f"[b]{b['percent']:.0f}%[/b] · {status}{tline}\n{'  '.join(extra)}"
+            self.p_vtex.update(
+                f"Status: [{_P['yellow']}]não conectado[/]\n"
+                "Entre com: vtex login <conta>"
             )
-            self.snapshot["Bateria"] = f"{b['percent']:.0f}% ({status})"
 
         self.snapshot["Tokens IA hoje"] = f"US$ {t['cost']:.2f}, {t['messages']} mensagens"
         self.snapshot["VTEX"] = (
