@@ -1,7 +1,7 @@
 {
   "name": "@zeluizr/lattice",
   "version": "1.0.0",
-  "description": "Real-time terminal dashboard for macOS Apple Silicon — GPU, power, temps, system metrics, AI token cost, and a built-in Claude assistant that sees your live metrics.",
+  "description": "Real-time terminal dashboard for macOS Apple Silicon — GPU, power, temperatures/fans, per-disk I/O (incl. /Volumes), network, memory, processes, and AI token cost.",
   "type": "module",
   "bin": {
     "lattice": "dist/cli.js"
@@ -49,6 +49,9 @@
   "bugs": {
     "url": "https://github.com/zeluizr/lattice/issues"
   },
+  "publishConfig": {
+    "access": "restricted"
+  },
   "scripts": {
     "build": "tsc && node scripts/postbuild.mjs",
     "build:native": "bash native/build.sh",
@@ -57,7 +60,6 @@
     "prepublishOnly": "npm run build:native && npm run build"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.105.0",
     "bplist-parser": "^0.3.2",
     "execa": "^9.6.1",
     "ink": "^7.1.0",

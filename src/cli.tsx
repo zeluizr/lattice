@@ -1,4 +1,5 @@
 import React from "react";
+import { dirname } from "node:path";
 import { render } from "ink";
 import meow from "meow";
 import { execa } from "execa";
@@ -18,6 +19,9 @@ const cli = meow(
 
   Options
     --no-power        skip powermetrics/sudo (CPU/GPU/RAM/disk/net only)
+    --no-vtex         hide the VTEX panel (for non-VTEX users)
+    --repos           folder of git repos to show branches for
+                      (default: the parent of the current directory)
     --interval, -i    refresh interval in seconds (default 1)
     --procs, -n       number of top processes to show (default 8)
     --icons           icon style: nerd | emoji | none (default nerd)
@@ -36,6 +40,8 @@ const cli = meow(
     description: false,
     flags: {
       power: { type: "boolean", default: true },
+      vtex: { type: "boolean", default: true },
+      repos: { type: "string", default: "" },
       interval: { type: "number", shortFlag: "i", default: 1 },
       procs: { type: "number", shortFlag: "n", default: 8 },
       icons: { type: "string", default: "" },
@@ -122,6 +128,8 @@ async function main(): Promise<void> {
       icon={icon}
       lang={lang}
       usePower={usePower}
+      useVtex={cli.flags.vtex}
+      gitDir={cli.flags.repos || dirname(process.cwd())}
       interval={cli.flags.interval}
       topN={cli.flags.procs}
     />,

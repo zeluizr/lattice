@@ -22,6 +22,35 @@ export interface ProcInfo {
   rss: number; // bytes
 }
 
+export interface DiskInfo {
+  mount: string; // e.g. "/", "/Volumes/dante"
+  device: string; // whole disk, e.g. "disk7"
+  readBps: number;
+  writeBps: number;
+  usedBytes: number;
+  sizeBytes: number;
+  usePercent: number; // 0–100
+}
+
+export interface DisksData {
+  disks: DiskInfo[];
+}
+
+export interface GitRepo {
+  name: string;
+  branch: string; // "(detached)" when no branch
+  ahead: number; // commits ahead of upstream
+  behind: number; // commits behind upstream
+  detached: boolean;
+  dirty: boolean; // has uncommitted changes
+}
+
+export interface GitData {
+  root: string;
+  repos: GitRepo[];
+  truncated: boolean; // more repos than MAX_REPOS were found
+}
+
 export interface GpuData {
   utilPct: number | null;
   memUsedBytes: number | null;

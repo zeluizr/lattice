@@ -23,14 +23,13 @@ node dist/cli.js         # run it
 ```
 src/
   cli.tsx              entry: args, first-run language, sudo pre-auth, render
-  app.tsx              Ink dashboard: layout, refresh loops, keybindings, chat
+  app.tsx              Ink dashboard: layout, refresh loops, keybindings
   theme.ts  icons.ts   Dracula Pro palette / icon sets
   format.ts            humanBytes, sparkline, status, etc.
   config.ts            ~/.config/lattice/config.json
   i18n/                en (base) + es + pt-BR + loader
   components/          Panel, LanguageSelect
-  collectors/          system, gpu, sensors, power, tokens, vtex
-  chat.ts              Anthropic client + live-context injection
+  collectors/          system, disks, git, gpu, sensors, power, tokens, vtex
 native/smc.c           IOKit SMC reader (temps/fans), shipped prebuilt
 ```
 
@@ -46,7 +45,7 @@ native/smc.c           IOKit SMC reader (temps/fans), shipped prebuilt
 
 - Keep collectors side-effect-free and resilient — a failing data source should
   degrade gracefully, never crash the app.
-- No telemetry, no network calls except the optional chat.
+- No telemetry, no network calls — every metric is read locally.
 - Match the existing style; run `npm run build` (typecheck) before opening a PR.
 
 ## Commit & PR

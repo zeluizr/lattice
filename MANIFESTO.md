@@ -5,8 +5,7 @@ and cooling in a rhythm you rarely see. **lattice makes that rhythm visible.**
 
 ### 1. Your machine, your data.
 Every metric is read locally and stays local. No telemetry, no accounts, no
-cloud. The only thing that ever leaves your Mac is a question you choose to ask
-the assistant.
+cloud — nothing ever leaves your Mac.
 
 ### 2. Built for the metal it runs on.
 lattice is not a generic monitor with a Mac coat of paint. It speaks IOKit, SMC,
@@ -17,10 +16,10 @@ whatever comes next.
 A dashboard you stare at all day should be a pleasure to look at. Real colors,
 live sparklines, considered typography. Function and form are not opposites.
 
-### 4. An assistant that sees what you see.
-Most chatbots are blind. lattice's assistant reads the same live numbers you
-do — so "why did the GPU spike?" gets an answer grounded in your actual machine,
-right now.
+### 4. Every disk, every volume.
+Storage isn't one number. lattice shows each disk on its own — `/` and every
+external volume under `/Volumes` — with live read/write and space used, so you
+see exactly which one is working.
 
 ### 5. Fast, small, out of the way.
 A monitor that hogs the resources it measures has failed. lattice stays light.

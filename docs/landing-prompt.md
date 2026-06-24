@@ -9,9 +9,10 @@ the copy, the exact color palette, the three languages and the manifesto.
 ````text
 Build a single-page, responsive marketing website for "lattice" — an open-source,
 real-time terminal dashboard (TUI) for macOS Apple Silicon. It shows GPU, power,
-temperatures/fans, system metrics and AI token cost, and includes a built-in
-Claude assistant that reads your live metrics. It installs from npm and runs with
-`npx @zeluizr/lattice` or `npm i -g @zeluizr/lattice` (command: `lattice`).
+temperatures/fans, per-disk I/O & usage (including external volumes under
+`/Volumes`), network, system metrics and AI token cost. It is a focused,
+local-only monitor — nothing ever leaves your Mac. It installs from npm and runs
+with `npx @zeluizr/lattice` or `npm i -g @zeluizr/lattice` (command: `lattice`).
 Repo: https://github.com/zeluizr/lattice — npm: @zeluizr/lattice — License: MIT.
 
 TECH & QUALITY
@@ -41,9 +42,9 @@ Provide ALL copy in the three languages. These mirror the app's own locales.
 SECTIONS
 1. Header: logo "◇ lattice", language switcher, theme toggle, GitHub + npm links.
 2. Hero: tagline "Watch your machine think." A one-line pitch:
-   "A real-time terminal dashboard for macOS Apple Silicon — GPU, power, temps,
-   system metrics and AI token cost, with a built-in Claude assistant that sees
-   your live metrics."
+   "A real-time terminal dashboard for macOS Apple Silicon — GPU, power, temps &
+   fans, per-disk I/O, network, system metrics and AI token cost. Local-only,
+   nothing leaves your Mac."
    Primary CTA: a copy-to-clipboard code chip `npx @zeluizr/lattice`.
    Secondary CTA: "View on GitHub".
 3. Faux terminal demo: a styled, looping mock of the dashboard — bordered panels
@@ -55,20 +56,20 @@ SECTIONS
    - GPU usage & memory
    - Power (watts), temps & fans — temps without sudo
    - AI cost tracking from your Claude Code logs (today's spend)
-   - Live AI chat that sees your metrics
+   - Per-disk I/O & usage — one row per mount, including /Volumes
+   - Git branches — current branch + dirty/ahead·behind for the repos in a folder
    - Six Dracula Pro themes
    - Three languages (EN / ES / PT-BR)
    - Local-first: no telemetry, no accounts, no cloud
 5. Commands & usage:
    - Install: `npx @zeluizr/lattice` and `npm i -g @zeluizr/lattice`
-   - Flags: --no-power, --interval, --procs, --icons (nerd|emoji|none),
-     --lang (en|es|pt-BR), --theme
-   - Hotkeys: q quit · p pause · +/- speed · i chat
-6. The AI difference: short explainer that the assistant receives a live snapshot
-   of every panel, with an example exchange:
-   user: "why did the GPU spike?"
-   claude: "Your GPU is at 92% — 'stable' is using 1.0 GB of VRAM and just jumped
-   to 15% CPU; that render is driving it."
+   - Flags: --no-power, --no-vtex, --repos <dir>, --interval, --procs,
+     --icons (nerd|emoji|none), --lang (en|es|pt-BR), --theme
+   - Hotkeys: q quit · p pause · +/- speed
+6. Per-disk visibility: short explainer that storage isn't one number — lattice
+   shows each mount on its own (`/` and every external volume under `/Volumes`)
+   with live read/write throughput and space used, so you see exactly which disk
+   is busy. Show a small mock disks table with two or three rows.
 7. Manifesto: render the 7 points below as a styled section.
 8. Footer: MIT license, GitHub, npm, "Made for Apple Silicon", author
    Jose Luiz Rodrigues.
@@ -80,15 +81,15 @@ the tone):
   warming and cooling in a rhythm you rarely see. lattice makes that rhythm
   visible."
   1. Your machine, your data. Every metric is read locally and stays local. No
-     telemetry, no accounts, no cloud. The only thing that ever leaves your Mac is
-     a question you choose to ask the assistant.
+     telemetry, no accounts, no cloud — nothing ever leaves your Mac.
   2. Built for the metal it runs on. lattice speaks IOKit, SMC, ioreg and
      powermetrics natively — tuned for Apple Silicon, from the M1 to whatever
      comes next.
   3. The terminal deserves beauty. Real colors, live sparklines, considered
      typography. Function and form are not opposites.
-  4. An assistant that sees what you see. lattice's assistant reads the same live
-     numbers you do, so its answers are grounded in your actual machine, right now.
+  4. Every disk, every volume. Storage isn't one number. lattice shows each disk
+     on its own — `/` and every external volume under `/Volumes` — with live
+     read/write and space used, so you see exactly which one is working.
   5. Fast, small, out of the way. A monitor that hogs the resources it measures
      has failed.
   6. Open and yours to bend. MIT-licensed, readable, hackable.

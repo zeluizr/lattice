@@ -21,7 +21,7 @@ export type IconName =
   | "power"
   | "tokens"
   | "vtex"
-  | "chat"
+  | "git"
   | "proc"
   | "clock";
 
@@ -38,7 +38,7 @@ const NERD: Record<IconName, string> = {
   power: "", // bolt
   tokens: "", // money
   vtex: "", // shopping-cart
-  chat: "", // comment
+  git: "\uF126", // code-fork
   proc: "", // tasks
   clock: "", // clock
 };
@@ -56,7 +56,7 @@ const EMOJI: Record<IconName, string> = {
   power: "⚡",
   tokens: "🪙",
   vtex: "🛒",
-  chat: "💬",
+  git: "🌿",
   proc: "📋",
   clock: "🕐",
 };

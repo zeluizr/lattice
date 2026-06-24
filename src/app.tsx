@@ -2,18 +2,20 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import { Panel } from "./components/Panel.js";
 import { SystemCollector } from "./collectors/system.js";
+import { DisksCollector } from "./collectors/disks.js";
+import { GitCollector } from "./collectors/git.js";
 import { readGpu } from "./collectors/gpu.js";
-import { readSensors, readBattery } from "./collectors/sensors.js";
+import { readSensors } from "./collectors/sensors.js";
 import { PowerCollector } from "./collectors/power.js";
 import { TokenCollector } from "./collectors/tokens.js";
 import { readVtex } from "./collectors/vtex.js";
-import { ChatClient, type ChatMessage } from "./chat.js";
 import { coreCell, fmtTok, humanBytes, humanRate, sparkline, statusLevel } from "./format.js";
 import type { Palette } from "./theme.js";
 import type { IconName } from "./icons.js";
 import type { Lang, Translator } from "./i18n/index.js";
 import type {
-  BatteryData,
+  DisksData,
+  GitData,
   GpuData,
   PowerData,
   SensorsData,
@@ -28,13 +30,10 @@ export interface AppProps {
   icon: (name: IconName) => string;
   lang: Lang;
   usePower: boolean;
+  useVtex: boolean;
+  gitDir: string;
   interval: number;
   topN: number;
-}
-
-interface LogLine {
-  who: "you" | "claude" | "sys" | "err";
-  text: string;
 }
 
 const MAX_HIST = 60;
@@ -46,10 +45,12 @@ function timeStr(): string {
 }
 
 export function App(props: AppProps): React.JSX.Element {
-  const { t, pal, icon, lang, usePower, topN } = props;
+  const { t, pal, icon, usePower, useVtex, gitDir, topN } = props;
   const { exit } = useApp();
 
   const [sys, setSys] = useState<SystemData | null>(null);
+  const [disks, setDisks] = useState<DisksData | null>(null);
+  const [git, setGit] = useState<GitData | null>(null);
   const [gpu, setGpu] = useState<GpuData | null>(null);
   const [sensors, setSensors] = useState<SensorsData | null>(null);
   const [power, setPower] = useState<PowerData | null>(null);
@@ -67,17 +68,11 @@ export function App(props: AppProps): React.JSX.Element {
   const [now, setNow] = useState(timeStr());
   const [cols, setCols] = useState(process.stdout.columns || 100);
 
-  const [log, setLog] = useState<LogLine[]>([]);
-  const [inputMode, setInputMode] = useState(false);
-  const [inputValue, setInputValue] = useState("");
-  const [thinking, setThinking] = useState(false);
-
   const sysRef = useRef<SystemCollector | null>(null);
+  const disksRef = useRef<DisksCollector | null>(null);
+  const gitRef = useRef<GitCollector | null>(null);
   const tokRef = useRef<TokenCollector | null>(null);
   const powerRef = useRef<PowerCollector | null>(null);
-  const chatRef = useRef<ChatClient | null>(null);
-  const chatHistRef = useRef<ChatMessage[]>([]);
-  const snapRef = useRef<Record<string, string>>({});
   const pausedRef = useRef(false);
   const mounted = useRef(true);
 
@@ -89,18 +84,13 @@ export function App(props: AppProps): React.JSX.Element {
   useEffect(() => {
     mounted.current = true;
     sysRef.current = new SystemCollector(topN);
+    disksRef.current = new DisksCollector();
+    gitRef.current = new GitCollector(gitDir);
     tokRef.current = new TokenCollector();
-    chatRef.current = new ChatClient();
     if (usePower) {
       powerRef.current = new PowerCollector(Math.round(props.interval * 1000));
       powerRef.current.start();
     }
-    const c = chatRef.current;
-    setLog([
-      c.ready
-        ? { who: "sys", text: t("chat.ready", { model: c.model }) }
-        : { who: "err", text: `${t("chat.off")} ${c.error ?? ""}` },
-    ]);
 
     const clock = setInterval(() => mounted.current && setNow(timeStr()), 1000);
     const onResize = () => setCols(process.stdout.columns || 100);
@@ -116,11 +106,17 @@ export function App(props: AppProps): React.JSX.Element {
 
   // ----- main refresh loop --------------------------------------------------
   const refreshData = useCallback(async () => {
-    if (pausedRef.current || !sysRef.current) return;
-    const [s, g, st] = await Promise.all([sysRef.current.read(), readGpu(), readSensors()]);
+    if (pausedRef.current || !sysRef.current || !disksRef.current) return;
+    const [s, d, g, st] = await Promise.all([
+      sysRef.current.read(),
+      disksRef.current.read(),
+      readGpu(),
+      readSensors(),
+    ]);
     const p = powerRef.current ? powerRef.current.read() : null;
     if (!mounted.current) return;
     setSys(s);
+    setDisks(d);
     setGpu(g);
     setSensors(st);
     setPower(p);
@@ -130,36 +126,20 @@ export function App(props: AppProps): React.JSX.Element {
     setHGpu((h) => push(h, g.utilPct ?? 0));
     const tv = st.cpuTemp ?? st.gpuTemp;
     if (tv != null) setHTemp((h) => push(h, tv));
-
-    const snap: Record<string, string> = { ...snapRef.current };
-    snap[t("snap.cpu")] = `${s.cpuTotal.toFixed(0)}% (${s.cpuPer.length} cores)`;
-    snap[t("snap.gpu")] = `${g.utilPct ?? 0}% util, mem ${humanBytes(g.memUsedBytes)}/${humanBytes(g.memAllocBytes)}`;
-    snap[t("snap.ram")] = `${s.memPercent.toFixed(0)}% (${humanBytes(s.memUsed)}/${humanBytes(s.memTotal)})`;
-    snap[t("snap.network")] = `↓ ${humanRate(s.netRecvBps)} ↑ ${humanRate(s.netSentBps)}`;
-    snap[t("snap.disk")] = `R ${humanRate(s.diskReadBps)} W ${humanRate(s.diskWriteBps)}, ${s.diskUsagePercent.toFixed(0)}% full`;
-    if (st.cpuTemp != null)
-      snap[t("snap.temp")] = `CPU ${st.cpuTemp.toFixed(0)}°C, GPU ${(st.gpuTemp ?? 0).toFixed(0)}°C${st.fans[0] ? `, fan ${st.fans[0].rpm.toFixed(0)}rpm` : ""}`;
-    if (p && p.cpuW != null) snap[t("snap.power")] = `CPU ${p.cpuW.toFixed(1)}W, GPU ${(p.gpuW ?? 0).toFixed(1)}W`;
-    if (s.procs[0]) snap[t("snap.topProc")] = `${s.procs[0].name} (${s.procs[0].cpu.toFixed(0)}%)`;
-    snapRef.current = snap;
-  }, [t]);
+  }, []);
 
   const refreshAux = useCallback(async () => {
     if (pausedRef.current || !tokRef.current) return;
-    const [tk, vx, bat] = await Promise.all([tokRef.current.read(), readVtex(), readBattery()]);
+    const [tk, vx, gt] = await Promise.all([
+      tokRef.current.read(),
+      useVtex ? readVtex() : Promise.resolve(null),
+      gitRef.current ? gitRef.current.read() : Promise.resolve(null),
+    ]);
     if (!mounted.current) return;
     setTokens(tk);
     setVtex(vx);
-    const snap = { ...snapRef.current };
-    snap[t("snap.tokens")] = `$${tk.cost.toFixed(2)}, ${tk.messages} msgs`;
-    snap[t("snap.vtex")] = vx.loggedIn
-      ? `${vx.account}/${vx.workspace || "master"}`
-      : vx.installed
-        ? "CLI installed, logged out"
-        : "CLI not installed";
-    if (bat.present) snap[t("snap.battery")] = `${bat.percent?.toFixed(0)}%${bat.charging ? " charging" : ""}`;
-    snapRef.current = snap;
-  }, [t]);
+    setGit(gt);
+  }, [useVtex]);
 
   useEffect(() => {
     refreshData();
@@ -173,55 +153,7 @@ export function App(props: AppProps): React.JSX.Element {
     return () => clearInterval(id);
   }, [refreshAux]);
 
-  // ----- chat ---------------------------------------------------------------
-  const snapshotText = (): string => {
-    const entries = Object.entries(snapRef.current);
-    if (!entries.length) return t("chat.noData");
-    return entries.map(([k, v]) => `- ${k}: ${v}`).join("\n");
-  };
-
-  const submit = useCallback(() => {
-    const q = inputValue.trim();
-    setInputValue("");
-    if (!q) return;
-    setLog((l) => [...l, { who: "you", text: q }]);
-    const chat = chatRef.current;
-    if (!chat?.ready) {
-      setLog((l) => [...l, { who: "err", text: chat?.error ?? "chat off" }]);
-      return;
-    }
-    setThinking(true);
-    const system = `${t("chat.system", { lang: t("chat.langName") })}\n\n[live context]\n${snapshotText()}`;
-    chat
-      .ask(q, system, chatHistRef.current)
-      .then((answer) => {
-        if (!mounted.current) return;
-        chatHistRef.current = [
-          ...chatHistRef.current,
-          { role: "user" as const, content: q },
-          { role: "assistant" as const, content: answer },
-        ].slice(-8);
-        setLog((l) => [...l, { who: "claude", text: answer }]);
-      })
-      .catch((e) => mounted.current && setLog((l) => [...l, { who: "err", text: `${t("chat.error")} ${e}` }]))
-      .finally(() => mounted.current && setThinking(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputValue, t]);
-
-  useInput((input, key) => {
-    if (inputMode) {
-      if (key.escape) {
-        setInputMode(false);
-        setInputValue("");
-      } else if (key.return) {
-        submit();
-      } else if (key.backspace || key.delete) {
-        setInputValue((v) => v.slice(0, -1));
-      } else if (input && !key.ctrl && !key.meta) {
-        setInputValue((v) => v + input);
-      }
-      return;
-    }
+  useInput((input) => {
     if (input === "q") {
       powerRef.current?.stop();
       exit();
@@ -231,8 +163,6 @@ export function App(props: AppProps): React.JSX.Element {
       setIntervalState((i) => Math.max(0.25, i / 2));
     } else if (input === "-" || input === "_") {
       setIntervalState((i) => Math.min(10, i * 2));
-    } else if ((input === "i" || input === "/") && chatRef.current?.ready) {
-      setInputMode(true);
     }
   });
 
@@ -272,6 +202,8 @@ export function App(props: AppProps): React.JSX.Element {
   const ct = sensors?.cpuTemp ?? null;
   const gt = sensors?.gpuTemp ?? null;
   const util = gpu?.utilPct ?? 0;
+  const diskRows = disks?.disks ?? [];
+  const gitRepos = git?.repos ?? [];
 
   const tokTotal = tokens ? tokens.input + tokens.output + tokens.cacheW + tokens.cacheR : 0;
   const modelItems = Object.entries(tokens?.byModel ?? {}).sort((a, b) => b[1].cost - a[1].cost);
@@ -286,19 +218,6 @@ export function App(props: AppProps): React.JSX.Element {
   else if (usePower) powerParts.push(`${icon("power")} ${t("temp.waitingSudo")}`);
   if (sensors?.fans?.length) powerParts.push(`${icon("fan")} ${sensors.fans[0].rpm.toFixed(0)} rpm`);
   const tempLine2 = powerParts.length ? powerParts.join("  ·  ") : t("temp.needsSudo");
-
-  const whoColor: Record<LogLine["who"], string> = {
-    you: pal.cyan,
-    claude: pal.green,
-    sys: pal.comment,
-    err: pal.red,
-  };
-  const whoLabel: Record<LogLine["who"], string> = {
-    you: t("chat.you"),
-    claude: t("chat.claude"),
-    sys: "",
-    err: "",
-  };
 
   return (
     <Box flexDirection="column" width={cols}>
@@ -356,7 +275,7 @@ export function App(props: AppProps): React.JSX.Element {
         </Panel>
       </Box>
 
-      {/* row 2: TEMP | IO | GPU */}
+      {/* row 2: TEMP | NETWORK | GPU */}
       <Box flexDirection="row">
         <Panel title={`${icon("temp")} ${t("panel.temp")}`} color={pal.orange} width={col3}>
           <Text wrap="truncate">
@@ -383,14 +302,12 @@ export function App(props: AppProps): React.JSX.Element {
           </Text>
         </Panel>
 
-        <Panel title={`${icon("net")} ${t("panel.io")}`} color={pal.cyan} width={col3}>
+        <Panel title={`${icon("net")} ${t("panel.net")}`} color={pal.cyan} width={col3}>
           <Text wrap="truncate">
-            {icon("net")} ↓ {humanRate(sys?.netRecvBps)}  ↑ {humanRate(sys?.netSentBps)}
+            ↓ {humanRate(sys?.netRecvBps)}
           </Text>
           <Text wrap="truncate">
-            {icon("disk")} {t("io.disk", { pct: (sys?.diskUsagePercent ?? 0).toFixed(0) })}
-            {"  "}
-            <Stat value={sys?.diskUsagePercent ?? 0} warn={80} crit={92} metric="disk" />
+            ↑ {humanRate(sys?.netSentBps)}
           </Text>
           <Text color={pal.cyan} wrap="truncate">
             {sparkline(hNet, w3)}
@@ -418,9 +335,45 @@ export function App(props: AppProps): React.JSX.Element {
         </Panel>
       </Box>
 
-      {/* row 3: TOKENS | VTEX */}
+      {/* disks: one row per real mount, including /Volumes */}
+      <Box flexDirection="column" borderStyle="round" borderColor={pal.cyan} paddingX={1} marginRight={1} width={fullW}>
+        <Text color={pal.cyan} bold>
+          {icon("disk")} {t("panel.disks")}
+        </Text>
+        <Text color={pal.purple} bold wrap="truncate">
+          {t("disks.mount").padEnd(22)}
+          {t("disks.read").padEnd(12)}
+          {t("disks.write").padEnd(12)}
+          {t("disks.usage")}
+        </Text>
+        {diskRows.length === 0 ? (
+          <Text color={pal.comment}>{t("spark.collecting")}</Text>
+        ) : (
+          diskRows.map((d) => {
+            const lvl = statusLevel(d.usePercent, 80, 92);
+            return (
+              <Text key={d.mount} wrap="truncate">
+                {d.mount.slice(0, 21).padEnd(22)}
+                {humanRate(d.readBps).padEnd(12)}
+                {humanRate(d.writeBps).padEnd(12)}
+                <Text color={statColor(lvl)}>● {d.usePercent.toFixed(0)}%</Text>
+                {"  "}
+                <Text color={pal.comment}>
+                  ({humanBytes(d.usedBytes)}/{humanBytes(d.sizeBytes)})
+                </Text>
+              </Text>
+            );
+          })
+        )}
+      </Box>
+
+      {/* row 3: TOKENS | VTEX (VTEX optional via --no-vtex) */}
       <Box flexDirection="row">
-        <Panel title={`${icon("tokens")} ${t("panel.tokens")}`} color={pal.pink} width={col2}>
+        <Panel
+          title={`${icon("tokens")} ${t("panel.tokens")}`}
+          color={pal.pink}
+          width={useVtex ? col2 : fullW}
+        >
           <Text wrap="truncate">
             {t("tokens.spent", { cost: (tokens?.cost ?? 0).toFixed(2), messages: tokens?.messages ?? 0 })}
           </Text>
@@ -439,6 +392,7 @@ export function App(props: AppProps): React.JSX.Element {
           </Text>
         </Panel>
 
+        {useVtex && (
         <Panel title={`${icon("vtex")} ${t("panel.vtex")}`} color={pal.purple} width={col2}>
           {!vtex ? (
             <Text color={pal.comment}>{t("spark.collecting")}</Text>
@@ -477,7 +431,37 @@ export function App(props: AppProps): React.JSX.Element {
             </>
           )}
         </Panel>
+        )}
       </Box>
+
+      {/* git: current branch per repo in the scanned folder (hidden when empty) */}
+      {gitRepos.length > 0 && (
+        <Box flexDirection="column" borderStyle="round" borderColor={pal.green} paddingX={1} marginRight={1} width={fullW}>
+          <Text color={pal.green} bold wrap="truncate">
+            {icon("git")} {t("panel.git")}
+            {git?.truncated ? <Text color={pal.comment}> (+)</Text> : null}
+          </Text>
+          <Text color={pal.purple} bold wrap="truncate">
+            {t("git.repo").padEnd(20)}
+            {t("git.branch").padEnd(22)}
+            {t("git.state")}
+          </Text>
+          {gitRepos.map((r) => {
+            const label = r.detached ? "(detached)" : r.branch;
+            return (
+              <Text key={r.name} wrap="truncate">
+                {r.name.slice(0, 19).padEnd(20)}
+                {label.slice(0, 21).padEnd(22)}
+                <Text color={r.dirty ? pal.yellow : pal.green}>
+                  ● {r.dirty ? t("git.dirty") : t("git.clean")}
+                </Text>
+                {r.ahead > 0 ? <Text color={pal.comment}>{"  "}↑{r.ahead}</Text> : null}
+                {r.behind > 0 ? <Text color={pal.comment}>{"  "}↓{r.behind}</Text> : null}
+              </Text>
+            );
+          })}
+        </Box>
+      )}
 
       {/* processes */}
       <Box flexDirection="column" borderStyle="round" borderColor={pal.comment} paddingX={1} marginRight={1} width={fullW}>
@@ -500,42 +484,11 @@ export function App(props: AppProps): React.JSX.Element {
         ))}
       </Box>
 
-      {/* chat */}
-      <Box flexDirection="column" borderStyle="round" borderColor={pal.pink} paddingX={1} marginRight={1} width={fullW}>
-        <Text color={pal.pink} bold>
-          {icon("chat")} {t("panel.chat")}
-        </Text>
-        {log.slice(-6).map((l, i) => (
-          <Text key={i} wrap="truncate">
-            {whoLabel[l.who] ? (
-              <Text color={whoColor[l.who]} bold>
-                {whoLabel[l.who]} ›{" "}
-              </Text>
-            ) : (
-              <Text color={whoColor[l.who]}>· </Text>
-            )}
-            <Text color={l.who === "sys" || l.who === "err" ? whoColor[l.who] : pal.foreground}>{l.text}</Text>
-          </Text>
-        ))}
-        {thinking && <Text color={pal.comment}>{t("chat.thinking")}</Text>}
-        <Text color={pal.cyan} wrap="truncate">
-          {inputMode ? (
-            <>
-              › {inputValue}
-              <Text color={pal.pink}>█</Text>
-            </>
-          ) : (
-            <Text color={pal.comment}>{chatRef.current?.ready ? t("chat.placeholder") + " (i)" : ""}</Text>
-          )}
-        </Text>
-      </Box>
-
       {/* footer */}
       <Box paddingX={1}>
         <Text color={pal.comment}>
           <Text color={pal.pink}>q</Text> {t("key.quit")} · <Text color={pal.pink}>p</Text> {t("key.pause")} ·{" "}
-          <Text color={pal.pink}>+/-</Text> {t("key.faster")}/{t("key.slower")} · <Text color={pal.pink}>i</Text>{" "}
-          {t("panel.chatInput")} · {interval.toFixed(2)}s
+          <Text color={pal.pink}>+/-</Text> {t("key.faster")}/{t("key.slower")} · {interval.toFixed(2)}s
         </Text>
       </Box>
     </Box>

@@ -4,8 +4,9 @@
 
 **A real-time terminal dashboard for macOS Apple Silicon.**
 
-GPU · power · temps & fans · system metrics · AI token cost — plus a built-in
-Claude assistant that sees your live metrics.
+GPU · power · temps & fans · per-disk I/O · network · memory · processes ·
+AI token cost. A focused monitor — every metric read locally, nothing leaves
+your Mac.
 
 [![npm](https://img.shields.io/npm/v/%40zeluizr%2Flattice?color=9580FF)](https://www.npmjs.com/package/@zeluizr/lattice)
 [![license](https://img.shields.io/badge/license-MIT-FF80BF)](./LICENSE)
@@ -20,7 +21,14 @@ Claude assistant that sees your live metrics.
 
 ## Install & run
 
-No install needed — run it straight from npm:
+`@zeluizr/lattice` is a **private** npm package. Log in to an npm account that
+has access to it first:
+
+```bash
+npm login
+```
+
+Then run it straight from npm:
 
 ```bash
 npx @zeluizr/lattice
@@ -33,6 +41,10 @@ npm i -g @zeluizr/lattice
 lattice
 ```
 
+> **Access:** the package is published with `access: restricted`. The owner
+> grants teammates access with `npm access grant read-only <user> @zeluizr/lattice`
+> (or by publishing under an npm **org** scope and adding them to a team).
+
 On first run, lattice asks for your language (English · Español · Português) and
 remembers it. Watts need `sudo` (see below); everything else works without it.
 
@@ -41,6 +53,8 @@ remembers it. Watts need `sudo` (see below); everything else works without it.
 ```bash
 lattice                      # full dashboard (asks for sudo once, for watts)
 lattice --no-power           # skip sudo; CPU/GPU/RAM/disk/net/temps only
+lattice --no-vtex            # hide the VTEX panel (for non-VTEX users)
+lattice --repos ~/code       # git branches for the repos in ~/code
 lattice --interval 2         # refresh every 2s
 lattice --procs 12           # show 12 top processes
 lattice --icons emoji        # nerd | emoji | none
@@ -51,6 +65,8 @@ lattice --theme blade        # pro | blade | buffy | lincoln | morbius | van-hel
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--no-power` | off | Skip `powermetrics`/sudo (no watts) |
+| `--no-vtex` | off | Hide the VTEX panel (for non-VTEX users) |
+| `--repos` | *(parent of cwd)* | Folder of git repos to show branches for |
 | `--interval`, `-i` | `1` | Refresh interval in seconds |
 | `--procs`, `-n` | `8` | Number of top processes |
 | `--icons` | `nerd` | Icon style: `nerd`, `emoji`, `none` |
@@ -64,38 +80,31 @@ lattice --theme blade        # pro | blade | buffy | lincoln | morbius | van-hel
 | `q` | quit |
 | `p` | pause / resume |
 | `+` / `-` | faster / slower refresh |
-| `i` | focus the chat input (type, `Enter` to send, `Esc` to cancel) |
 
 ## What it shows
 
 | Panel | Source | Needs sudo |
 |-------|--------|:----------:|
 | GPU usage & memory | `ioreg` (IOAccelerator) | — |
-| CPU, RAM, swap, disk, network, processes | system APIs | — |
+| CPU, RAM, swap, network, processes | system APIs | — |
+| Per-disk I/O & usage — `/` and every `/Volumes/*` | `ioreg` + system APIs | — |
 | Temperatures & fans | SMC via IOKit (native helper) | — |
 | Power (watts), GPU freq, thermal pressure | `powermetrics` | **yes** |
 | AI tokens & cost (today) | Claude Code logs (`~/.claude`) | — |
+| Git branches — current branch + dirty/ahead·behind per repo | `git status` | — |
 | VTEX status | VTEX CLI configstore | — |
-| Chat | Anthropic API | needs a key |
 
 Temperatures and fans read straight from the SMC, so they work **without sudo**.
 Desktops (Mac mini / Studio) simply report no battery.
 
-## The AI difference
+The **disks** panel breaks activity out per mount — one row each for `/` and
+every volume under `/Volumes` — with live read/write throughput and space used,
+so you can see exactly which disk is busy.
 
-The chat isn't a generic chatbot — it receives a live snapshot of every panel
-(CPU, GPU, RAM, network, disk, power, temps, token spend, VTEX). Ask
-*"why did the GPU spike?"* and Claude answers from your machine's actual numbers,
-right now. Runs on **Haiku 4.5**, so each question costs a fraction of a cent.
-
-To enable it, provide an Anthropic credential via the environment or a `.env`
-file (in the current directory or `~/.config/lattice/.env`):
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-api03-...
-```
-
-See [`.env.example`](./.env.example). Everything else works without it.
+The **git** panel scans a folder of repositories (by default the parent of the
+current directory, or pass `--repos <dir>`) and shows each repo's current branch
+with its state — clean/dirty and commits ahead/behind upstream. It hides itself
+when the folder has no repos.
 
 ## Languages
 
