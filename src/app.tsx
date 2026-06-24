@@ -4,6 +4,7 @@ import { Panel } from "./components/Panel.js";
 import { SystemCollector } from "./collectors/system.js";
 import { DisksCollector } from "./collectors/disks.js";
 import { GitCollector } from "./collectors/git.js";
+import { ZgitCollector } from "./collectors/zgit.js";
 import { readGpu } from "./collectors/gpu.js";
 import { readSensors } from "./collectors/sensors.js";
 import { PowerCollector } from "./collectors/power.js";
@@ -16,12 +17,14 @@ import type { Lang, Translator } from "./i18n/index.js";
 import type {
   DisksData,
   GitData,
+  GitRepo,
   GpuData,
   PowerData,
   SensorsData,
   SystemData,
   TokensData,
   VtexData,
+  ZgitServerData,
 } from "./collectors/types.js";
 
 export interface AppProps {
@@ -31,7 +34,8 @@ export interface AppProps {
   lang: Lang;
   usePower: boolean;
   useVtex: boolean;
-  gitDir: string;
+  repoRoots: string[];
+  zgitContainer: string;
   interval: number;
   topN: number;
 }
@@ -45,12 +49,13 @@ function timeStr(): string {
 }
 
 export function App(props: AppProps): React.JSX.Element {
-  const { t, pal, icon, usePower, useVtex, gitDir, topN } = props;
+  const { t, pal, icon, usePower, useVtex, repoRoots, zgitContainer, topN } = props;
   const { exit } = useApp();
 
   const [sys, setSys] = useState<SystemData | null>(null);
   const [disks, setDisks] = useState<DisksData | null>(null);
   const [git, setGit] = useState<GitData | null>(null);
+  const [zgit, setZgit] = useState<ZgitServerData | null>(null);
   const [gpu, setGpu] = useState<GpuData | null>(null);
   const [sensors, setSensors] = useState<SensorsData | null>(null);
   const [power, setPower] = useState<PowerData | null>(null);
@@ -71,6 +76,7 @@ export function App(props: AppProps): React.JSX.Element {
   const sysRef = useRef<SystemCollector | null>(null);
   const disksRef = useRef<DisksCollector | null>(null);
   const gitRef = useRef<GitCollector | null>(null);
+  const zgitRef = useRef<ZgitCollector | null>(null);
   const tokRef = useRef<TokenCollector | null>(null);
   const powerRef = useRef<PowerCollector | null>(null);
   const pausedRef = useRef(false);
@@ -85,7 +91,8 @@ export function App(props: AppProps): React.JSX.Element {
     mounted.current = true;
     sysRef.current = new SystemCollector(topN);
     disksRef.current = new DisksCollector();
-    gitRef.current = new GitCollector(gitDir);
+    gitRef.current = new GitCollector(repoRoots);
+    zgitRef.current = new ZgitCollector(zgitContainer);
     tokRef.current = new TokenCollector();
     if (usePower) {
       powerRef.current = new PowerCollector(Math.round(props.interval * 1000));
@@ -130,15 +137,17 @@ export function App(props: AppProps): React.JSX.Element {
 
   const refreshAux = useCallback(async () => {
     if (pausedRef.current || !tokRef.current) return;
-    const [tk, vx, gt] = await Promise.all([
+    const [tk, vx, gt, zg] = await Promise.all([
       tokRef.current.read(),
       useVtex ? readVtex() : Promise.resolve(null),
       gitRef.current ? gitRef.current.read() : Promise.resolve(null),
+      zgitRef.current ? zgitRef.current.read() : Promise.resolve(null),
     ]);
     if (!mounted.current) return;
     setTokens(tk);
     setVtex(vx);
     setGit(gt);
+    setZgit(zg);
   }, [useVtex]);
 
   useEffect(() => {
@@ -204,6 +213,25 @@ export function App(props: AppProps): React.JSX.Element {
   const util = gpu?.utilPct ?? 0;
   const diskRows = disks?.disks ?? [];
   const gitRepos = git?.repos ?? [];
+  const zgitServer = zgit?.available ? zgit : null;
+  const showGit = gitRepos.length > 0 || !!zgitServer;
+
+  const hostLabel = (r: GitRepo): string =>
+    r.hostKind === "github"
+      ? "GitHub"
+      : r.hostKind === "zgit"
+        ? "zgit"
+        : r.hostKind === "none"
+          ? t("git.local")
+          : r.host || "—";
+  const hostColor = (r: GitRepo): string =>
+    r.hostKind === "github"
+      ? pal.purple
+      : r.hostKind === "zgit"
+        ? pal.orange
+        : r.hostKind === "none"
+          ? pal.comment
+          : pal.cyan;
 
   const tokTotal = tokens ? tokens.input + tokens.output + tokens.cacheW + tokens.cacheR : 0;
   const modelItems = Object.entries(tokens?.byModel ?? {}).sort((a, b) => b[1].cost - a[1].cost);
@@ -434,32 +462,48 @@ export function App(props: AppProps): React.JSX.Element {
         )}
       </Box>
 
-      {/* git: current branch per repo in the scanned folder (hidden when empty) */}
-      {gitRepos.length > 0 && (
+      {/* git: a fixed, cwd-independent report of every configured repo, each
+          tagged with where its origin lives (GitHub vs the zgit server), plus a
+          summary of the bare repos on the zgit server itself. */}
+      {showGit && (
         <Box flexDirection="column" borderStyle="round" borderColor={pal.green} paddingX={1} marginRight={1} width={fullW}>
           <Text color={pal.green} bold wrap="truncate">
             {icon("git")} {t("panel.git")}
             {git?.truncated ? <Text color={pal.comment}> (+)</Text> : null}
           </Text>
-          <Text color={pal.purple} bold wrap="truncate">
-            {t("git.repo").padEnd(20)}
-            {t("git.branch").padEnd(22)}
-            {t("git.state")}
-          </Text>
+          {gitRepos.length > 0 && (
+            <Text color={pal.purple} bold wrap="truncate">
+              {t("git.repo").padEnd(20)}
+              {t("git.branch").padEnd(18)}
+              {t("git.state").padEnd(10)}
+              {t("git.host")}
+            </Text>
+          )}
           {gitRepos.map((r) => {
             const label = r.detached ? "(detached)" : r.branch;
             return (
-              <Text key={r.name} wrap="truncate">
+              <Text key={r.path} wrap="truncate">
                 {r.name.slice(0, 19).padEnd(20)}
-                {label.slice(0, 21).padEnd(22)}
-                <Text color={r.dirty ? pal.yellow : pal.green}>
-                  ● {r.dirty ? t("git.dirty") : t("git.clean")}
-                </Text>
-                {r.ahead > 0 ? <Text color={pal.comment}>{"  "}↑{r.ahead}</Text> : null}
-                {r.behind > 0 ? <Text color={pal.comment}>{"  "}↓{r.behind}</Text> : null}
+                {label.slice(0, 17).padEnd(18)}
+                <Text color={r.dirty ? pal.yellow : pal.green}>●</Text>
+                {` ${r.dirty ? t("git.dirty") : t("git.clean")}`.padEnd(9)}
+                <Text color={hostColor(r)}>{hostLabel(r).slice(0, 10).padEnd(10)}</Text>
+                {r.ahead > 0 ? <Text color={pal.comment}> ↑{r.ahead}</Text> : null}
+                {r.behind > 0 ? <Text color={pal.comment}> ↓{r.behind}</Text> : null}
               </Text>
             );
           })}
+          {zgitServer && (
+            <Text color={pal.comment} wrap="truncate">
+              {zgitServer.repos.length
+                ? t("git.server", {
+                    container: zgitServer.container,
+                    list: zgitServer.repos.join(", "),
+                    n: zgitServer.repos.length,
+                  })
+                : t("git.serverEmpty", { container: zgitServer.container })}
+            </Text>
+          )}
         </Box>
       )}
 

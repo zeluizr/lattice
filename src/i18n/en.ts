@@ -45,8 +45,12 @@ export const en = {
   "git.repo": "REPO",
   "git.branch": "BRANCH",
   "git.state": "STATE",
+  "git.host": "HOST",
   "git.clean": "clean",
   "git.dirty": "dirty",
+  "git.local": "local",
+  "git.server": "— zgit server ({container}): {list} ({n})",
+  "git.serverEmpty": "— zgit server ({container}): no repos",
 
   "gpu.usage": "Usage",
   "gpu.mem": "mem {used}/{alloc}",

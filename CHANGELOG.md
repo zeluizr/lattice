@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-06-24
+
+### Added
+- **GIT panel reports the host of each repo.** A new `HOST` column tags every
+  repo by where its `origin` lives — **GitHub**, the self-hosted **zgit** server,
+  another host, or `local` (no remote) — parsed from the remote URL.
+- **zgit server listing.** A footer line in the GIT panel lists the bare repos on
+  the self-hosted zgit Docker container (`docker exec -u git <container> ls
+  /repos`). Local-only, no network; fails soft (the line is hidden) when Docker
+  or the container is unavailable. Container name via `--zgit` / config
+  `zgitContainer` (default `zgit`).
+
+### Changed
+- **The GIT panel is now cwd-independent.** It scans a fixed, configured list of
+  paths instead of the parent of the current directory, so the report is the
+  same in every terminal/tab. Each `--repos` entry may be a repo itself or a
+  folder whose subdirectories are repos; entries are merged and de-duplicated.
+- `--repos` now accepts a comma-separated list and is persisted to
+  `~/.config/lattice/config.json` (`repoRoots`). With no flag and no saved list,
+  it falls back to the parent of the cwd (previous behaviour).
+
 ## [1.0.0] — 2026-06-24
 
 First open-source release as **lattice** — a full rewrite of the project

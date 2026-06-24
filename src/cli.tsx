@@ -20,8 +20,13 @@ const cli = meow(
   Options
     --no-power        skip powermetrics/sudo (CPU/GPU/RAM/disk/net only)
     --no-vtex         hide the VTEX panel (for non-VTEX users)
-    --repos           folder of git repos to show branches for
-                      (default: the parent of the current directory)
+    --repos           comma-separated folders and/or repos the GIT panel always
+                      shows, regardless of where lattice is launched. A path
+                      that is itself a repo is shown directly; otherwise its
+                      subdirectories are scanned. Saved to config once set.
+                      (default: saved list, else the parent of the current dir)
+    --zgit            Docker container of the self-hosted zgit server to list
+                      (default: zgit; the line is hidden when unavailable)
     --interval, -i    refresh interval in seconds (default 1)
     --procs, -n       number of top processes to show (default 8)
     --icons           icon style: nerd | emoji | none (default nerd)
@@ -42,6 +47,7 @@ const cli = meow(
       power: { type: "boolean", default: true },
       vtex: { type: "boolean", default: true },
       repos: { type: "string", default: "" },
+      zgit: { type: "string", default: "" },
       interval: { type: "number", shortFlag: "i", default: 1 },
       procs: { type: "number", shortFlag: "n", default: 8 },
       icons: { type: "string", default: "" },
@@ -100,10 +106,38 @@ function resolveIcons(): IconMode {
   return loadConfig().icons ?? "nerd";
 }
 
+/** The fixed set of folders/repos the GIT panel scans — independent of cwd. */
+function resolveRepoRoots(): string[] {
+  const flag = cli.flags.repos.trim();
+  if (flag) {
+    const roots = flag.split(",").map((s) => s.trim()).filter(Boolean);
+    if (roots.length) {
+      saveConfig({ repoRoots: roots });
+      return roots;
+    }
+  }
+  const saved = loadConfig().repoRoots;
+  if (saved && saved.length) return saved;
+  // First run / no config: fall back to the parent of the cwd so the tool still
+  // works out of the box. Pass --repos once to pin a stable, cwd-independent list.
+  return [dirname(process.cwd())];
+}
+
+function resolveZgitContainer(): string {
+  const flag = cli.flags.zgit.trim();
+  if (flag) {
+    saveConfig({ zgitContainer: flag });
+    return flag;
+  }
+  return loadConfig().zgitContainer ?? "zgit";
+}
+
 async function main(): Promise<void> {
   const lang = await resolveLang();
   const variant = resolveTheme();
   const iconMode = resolveIcons();
+  const repoRoots = resolveRepoRoots();
+  const zgitContainer = resolveZgitContainer();
   const t = makeT(lang);
   const pal = palette(variant);
   const icon = makeIcons(iconMode);
@@ -129,7 +163,8 @@ async function main(): Promise<void> {
       lang={lang}
       usePower={usePower}
       useVtex={cli.flags.vtex}
-      gitDir={cli.flags.repos || dirname(process.cwd())}
+      repoRoots={repoRoots}
+      zgitContainer={zgitContainer}
       interval={cli.flags.interval}
       topN={cli.flags.procs}
     />,

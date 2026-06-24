@@ -36,19 +36,33 @@ export interface DisksData {
   disks: DiskInfo[];
 }
 
+/** Where a repo's `origin` lives: GitHub, the self-hosted zgit server, another
+ * host, or no remote at all. */
+export type GitHostKind = "github" | "zgit" | "other" | "none";
+
 export interface GitRepo {
   name: string;
+  path: string; // absolute path, used to de-duplicate across roots
   branch: string; // "(detached)" when no branch
   ahead: number; // commits ahead of upstream
   behind: number; // commits behind upstream
   detached: boolean;
   dirty: boolean; // has uncommitted changes
+  host: string; // hostname parsed from origin URL ("" when no remote)
+  hostKind: GitHostKind;
 }
 
 export interface GitData {
-  root: string;
+  roots: string[]; // the configured folders/repos that were scanned
   repos: GitRepo[];
   truncated: boolean; // more repos than MAX_REPOS were found
+}
+
+/** Bare repos living on the self-hosted zgit server (a Docker container). */
+export interface ZgitServerData {
+  available: boolean; // true when the container answered
+  container: string; // container name queried
+  repos: string[]; // repo names, without the ".git" suffix
 }
 
 export interface GpuData {

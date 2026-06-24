@@ -47,8 +47,12 @@ export const es: Translation = {
   "git.repo": "REPO",
   "git.branch": "BRANCH",
   "git.state": "ESTADO",
+  "git.host": "HOST",
   "git.clean": "limpio",
   "git.dirty": "sucio",
+  "git.local": "local",
+  "git.server": "— servidor zgit ({container}): {list} ({n})",
+  "git.serverEmpty": "— servidor zgit ({container}): sin repos",
 
   "gpu.usage": "Uso",
   "gpu.mem": "mem {used}/{alloc}",

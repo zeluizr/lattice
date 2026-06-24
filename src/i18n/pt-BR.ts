@@ -47,8 +47,12 @@ export const ptBR: Translation = {
   "git.repo": "REPO",
   "git.branch": "BRANCH",
   "git.state": "ESTADO",
+  "git.host": "HOST",
   "git.clean": "limpo",
   "git.dirty": "sujo",
+  "git.local": "local",
+  "git.server": "— servidor zgit ({container}): {list} ({n})",
+  "git.serverEmpty": "— servidor zgit ({container}): sem repos",
 
   "gpu.usage": "Uso",
   "gpu.mem": "mem {used}/{alloc}",

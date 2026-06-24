@@ -8,6 +8,8 @@ export interface Config {
   lang?: Lang;
   theme?: ThemeVariant;
   icons?: "nerd" | "emoji" | "none";
+  repoRoots?: string[]; // folders/repos the GIT panel always scans (cwd-independent)
+  zgitContainer?: string; // Docker container of the self-hosted zgit server
 }
 
 const DIR = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "lattice");
@@ -25,6 +27,11 @@ export function loadConfig(): Config {
     if (raw.lang && isLang(raw.lang)) cfg.lang = raw.lang;
     if (raw.theme && isVariant(raw.theme)) cfg.theme = raw.theme;
     if (raw.icons === "nerd" || raw.icons === "emoji" || raw.icons === "none") cfg.icons = raw.icons;
+    if (Array.isArray(raw.repoRoots)) {
+      const roots = raw.repoRoots.filter((r): r is string => typeof r === "string" && r.length > 0);
+      if (roots.length) cfg.repoRoots = roots;
+    }
+    if (typeof raw.zgitContainer === "string" && raw.zgitContainer) cfg.zgitContainer = raw.zgitContainer;
     return cfg;
   } catch {
     return {};
