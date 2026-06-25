@@ -126,3 +126,24 @@ export interface VtexData {
   workspace: string | null;
   loggedIn: boolean;
 }
+
+/** A model in the local HuggingFace hub cache, with live/recent usage. */
+export interface HFModel {
+  id: string; // "BAAI/bge-m3"
+  name: string; // "bge-m3" (display)
+  sizeBytes: number; // sum of blobs for the repo
+  modelType: string; // config.json model_type, e.g. "xlm-roberta"; "" if unknown
+  revision: string; // short hash from refs/main ("" if unknown)
+  active: boolean; // a process currently holds its files open (lsof)
+  procName: string; // process holding it (when active, else "")
+  pid: number; // pid holding it (0 when none)
+  lastUsed: number; // unix seconds, max atime across blobs (0 unknown)
+}
+
+export interface HFData {
+  available: boolean; // cache dir exists and has ≥1 model
+  cachePath: string; // resolved hub cache path
+  totalBytes: number; // sum across models
+  activeCount: number; // models with active === true
+  models: HFModel[]; // sorted: active first, then most-recently-used, then size desc
+}

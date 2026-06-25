@@ -61,7 +61,14 @@ async function main(): Promise<void> {
   const zgitContainer = cfg.zgitContainer ?? "zgit";
 
   const { waitUntilExit } = render(
-    <App t={t} pal={pal} icon={icon} repoRoots={repoRoots} zgitContainer={zgitContainer} />,
+    <App
+      t={t}
+      pal={pal}
+      icon={icon}
+      repoRoots={repoRoots}
+      zgitContainer={zgitContainer}
+      hfCachePath={cfg.hfCachePath}
+    />,
   );
   await waitUntilExit();
 }

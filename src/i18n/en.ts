@@ -12,6 +12,7 @@ export const en = {
   "panel.gpu": "GPU",
   "panel.tokens": "AI · TOKENS TODAY",
   "panel.vtex": "VTEX",
+  "panel.hf": "HUGGINGFACE",
   "panel.procs": "PROCESSES",
 
   "status.cpu.ok": "calm",
@@ -75,6 +76,16 @@ export const en = {
   "vtex.workspace": "Workspace",
   "vtex.notConnected": "not connected",
   "vtex.signin": "Sign in with: vtex login <account>",
+
+  "hf.model": "MODEL",
+  "hf.size": "SIZE",
+  "hf.type": "TYPE",
+  "hf.state": "STATE",
+  "hf.active": "active",
+  "hf.idle": "idle",
+  "hf.usedAgo": "used {ago} ago",
+  "hf.empty": "no models cached",
+  "hf.summary": "{path} · {size} · {n} models · {active} active",
 
   "proc.cpu": "CPU%",
   "proc.mem": "MEM",

@@ -10,6 +10,7 @@ export interface Config {
   icons?: "nerd" | "emoji" | "none";
   repoRoots?: string[]; // folders/repos the GIT panel always scans (cwd-independent)
   zgitContainer?: string; // Docker container of the self-hosted zgit server
+  hfCachePath?: string; // override for the HuggingFace hub cache dir
 }
 
 const DIR = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "lattice");
@@ -32,6 +33,7 @@ export function loadConfig(): Config {
       if (roots.length) cfg.repoRoots = roots;
     }
     if (typeof raw.zgitContainer === "string" && raw.zgitContainer) cfg.zgitContainer = raw.zgitContainer;
+    if (typeof raw.hfCachePath === "string" && raw.hfCachePath) cfg.hfCachePath = raw.hfCachePath;
     return cfg;
   } catch {
     return {};

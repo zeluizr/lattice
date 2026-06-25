@@ -5,11 +5,12 @@ import { SystemCollector } from "./collectors/system.js";
 import { DisksCollector } from "./collectors/disks.js";
 import { GitCollector } from "./collectors/git.js";
 import { ZgitCollector } from "./collectors/zgit.js";
+import { HFCollector } from "./collectors/huggingface.js";
 import { readGpu } from "./collectors/gpu.js";
 import { readSensors } from "./collectors/sensors.js";
 import { TokenCollector } from "./collectors/tokens.js";
 import { readVtex } from "./collectors/vtex.js";
-import { coreCell, fmtTok, humanBytes, humanRate, sparkline, statusLevel } from "./format.js";
+import { agoShort, coreCell, fmtTok, humanBytes, humanRate, sparkline, statusLevel } from "./format.js";
 import type { Palette } from "./theme.js";
 import type { IconName } from "./icons.js";
 import type { Translator } from "./i18n/index.js";
@@ -18,6 +19,7 @@ import type {
   GitData,
   GitRepo,
   GpuData,
+  HFData,
   SensorsData,
   SystemData,
   TokensData,
@@ -31,6 +33,7 @@ export interface AppProps {
   icon: (name: IconName) => string;
   repoRoots: string[];
   zgitContainer: string;
+  hfCachePath?: string;
 }
 
 const MAX_HIST = 60;
@@ -45,7 +48,7 @@ function timeStr(): string {
 }
 
 export function App(props: AppProps): React.JSX.Element {
-  const { t, pal, icon, repoRoots, zgitContainer } = props;
+  const { t, pal, icon, repoRoots, zgitContainer, hfCachePath } = props;
   const { exit } = useApp();
 
   const [sys, setSys] = useState<SystemData | null>(null);
@@ -56,6 +59,7 @@ export function App(props: AppProps): React.JSX.Element {
   const [sensors, setSensors] = useState<SensorsData | null>(null);
   const [tokens, setTokens] = useState<TokensData | null>(null);
   const [vtex, setVtex] = useState<VtexData | null>(null);
+  const [hf, setHf] = useState<HFData | null>(null);
 
   const [hCpu, setHCpu] = useState<number[]>([]);
   const [hMem, setHMem] = useState<number[]>([]);
@@ -73,6 +77,7 @@ export function App(props: AppProps): React.JSX.Element {
   const gitRef = useRef<GitCollector | null>(null);
   const zgitRef = useRef<ZgitCollector | null>(null);
   const tokRef = useRef<TokenCollector | null>(null);
+  const hfRef = useRef<HFCollector | null>(null);
   const pausedRef = useRef(false);
   const mounted = useRef(true);
 
@@ -88,6 +93,7 @@ export function App(props: AppProps): React.JSX.Element {
     gitRef.current = new GitCollector(repoRoots);
     zgitRef.current = new ZgitCollector(zgitContainer);
     tokRef.current = new TokenCollector();
+    hfRef.current = new HFCollector(hfCachePath);
 
     const clock = setInterval(() => mounted.current && setNow(timeStr()), 1000);
     const onResize = () => setCols(process.stdout.columns || 100);
@@ -124,17 +130,19 @@ export function App(props: AppProps): React.JSX.Element {
 
   const refreshAux = useCallback(async () => {
     if (pausedRef.current || !tokRef.current) return;
-    const [tk, vx, gt, zg] = await Promise.all([
+    const [tk, vx, gt, zg, hfd] = await Promise.all([
       tokRef.current.read(),
       readVtex(),
       gitRef.current ? gitRef.current.read() : Promise.resolve(null),
       zgitRef.current ? zgitRef.current.read() : Promise.resolve(null),
+      hfRef.current ? hfRef.current.read() : Promise.resolve(null),
     ]);
     if (!mounted.current) return;
     setTokens(tk);
     setVtex(vx);
     setGit(gt);
     setZgit(zg);
+    setHf(hfd);
   }, []);
 
   useEffect(() => {
@@ -209,6 +217,9 @@ export function App(props: AppProps): React.JSX.Element {
   const gitTotal = git?.total ?? 0;
   const zgitServer = zgit?.available ? zgit : null;
   const showGit = gitTotal > 0 || !!zgitServer;
+  const hfModels = hf?.models ?? [];
+  const showHf = !!hf?.available;
+  const nowSec = Math.floor(Date.now() / 1000);
 
   const hostLabel = (r: GitRepo): string =>
     r.hostKind === "github"
@@ -385,6 +396,52 @@ export function App(props: AppProps): React.JSX.Element {
           })
         )}
       </Box>
+
+      {/* HuggingFace: installed local models + which are live right now */}
+      {showHf && (
+        <Box
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={pal.yellow}
+          paddingX={1}
+          marginRight={1}
+          width={fullW}
+        >
+          <Text color={pal.yellow} bold>
+            {icon("hf")} {t("panel.hf")}
+          </Text>
+          <Text color={pal.purple} bold wrap="truncate">
+            {t("hf.model").padEnd(30)}
+            {t("hf.size").padEnd(9)}
+            {t("hf.type").padEnd(16)}
+            {t("hf.state")}
+          </Text>
+          {hfModels.map((mdl) => (
+            <Text key={mdl.id} wrap="truncate">
+              {mdl.id.slice(0, 29).padEnd(30)}
+              {humanBytes(mdl.sizeBytes).padEnd(9)}
+              {(mdl.modelType || "—").slice(0, 15).padEnd(16)}
+              {mdl.active ? (
+                <Text color={pal.green}>
+                  ● {t("hf.active")} {mdl.procName.slice(0, 14)} {mdl.pid}
+                </Text>
+              ) : mdl.lastUsed > 0 ? (
+                <Text color={pal.comment}>{t("hf.usedAgo", { ago: agoShort(mdl.lastUsed, nowSec) })}</Text>
+              ) : (
+                <Text color={pal.comment}>{t("hf.idle")}</Text>
+              )}
+            </Text>
+          ))}
+          <Text color={pal.comment} wrap="truncate">
+            {t("hf.summary", {
+              path: hf?.cachePath ?? "",
+              size: humanBytes(hf?.totalBytes),
+              n: hfModels.length,
+              active: hf?.activeCount ?? 0,
+            })}
+          </Text>
+        </Box>
+      )}
 
       {/* row 3: TOKENS | VTEX */}
       <Box flexDirection="row">

@@ -48,6 +48,17 @@ export function sparkline(history: (number | null | undefined)[], width = 0): st
     .join("");
 }
 
+/** Short relative time ("now" / "3m" / "2h" / "5d") from a unix-seconds stamp. */
+export function agoShort(unixSeconds: number | null | undefined, nowSeconds: number): string {
+  const ts = Number(unixSeconds || 0);
+  if (!ts) return "—";
+  const s = Math.max(0, Math.floor(nowSeconds - ts));
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+
 export type StatusLevel = "ok" | "warn" | "crit";
 
 /** Pick a status level by thresholds (mirrors the Python status() helper). */

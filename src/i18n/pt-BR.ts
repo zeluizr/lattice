@@ -14,6 +14,7 @@ export const ptBR: Translation = {
   "panel.gpu": "GPU",
   "panel.tokens": "IA · TOKENS HOJE",
   "panel.vtex": "VTEX",
+  "panel.hf": "HUGGINGFACE",
   "panel.procs": "PROCESSOS",
 
   "status.cpu.ok": "tranquilo",
@@ -77,6 +78,16 @@ export const ptBR: Translation = {
   "vtex.workspace": "Workspace",
   "vtex.notConnected": "não conectado",
   "vtex.signin": "Entre com: vtex login <conta>",
+
+  "hf.model": "MODELO",
+  "hf.size": "TAMANHO",
+  "hf.type": "TIPO",
+  "hf.state": "ESTADO",
+  "hf.active": "ativo",
+  "hf.idle": "ocioso",
+  "hf.usedAgo": "usado há {ago}",
+  "hf.empty": "nenhum modelo em cache",
+  "hf.summary": "{path} · {size} · {n} modelos · {active} ativos",
 
   "proc.cpu": "CPU%",
   "proc.mem": "MEM",

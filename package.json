@@ -1,6 +1,6 @@
 {
   "name": "@zeluizr/lattice",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Real-time terminal dashboard for macOS Apple Silicon — GPU, power, temperatures/fans, per-disk I/O (incl. /Volumes), network, memory, processes, and AI token cost.",
   "type": "module",
   "bin": {

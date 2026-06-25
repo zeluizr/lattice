@@ -14,6 +14,7 @@ export const es: Translation = {
   "panel.gpu": "GPU",
   "panel.tokens": "IA · TOKENS HOY",
   "panel.vtex": "VTEX",
+  "panel.hf": "HUGGINGFACE",
   "panel.procs": "PROCESOS",
 
   "status.cpu.ok": "tranquilo",
@@ -77,6 +78,16 @@ export const es: Translation = {
   "vtex.workspace": "Workspace",
   "vtex.notConnected": "no conectado",
   "vtex.signin": "Entra con: vtex login <cuenta>",
+
+  "hf.model": "MODELO",
+  "hf.size": "TAMAÑO",
+  "hf.type": "TIPO",
+  "hf.state": "ESTADO",
+  "hf.active": "activo",
+  "hf.idle": "inactivo",
+  "hf.usedAgo": "usado hace {ago}",
+  "hf.empty": "sin modelos en caché",
+  "hf.summary": "{path} · {size} · {n} modelos · {active} activos",
 
   "proc.cpu": "CPU%",
   "proc.mem": "MEM",
