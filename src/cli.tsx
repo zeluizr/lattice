@@ -1,3 +1,4 @@
+import "./bootstrap.js"; // must be first: sets NODE_ENV=production before React/Ink load
 import React from "react";
 import { dirname } from "node:path";
 import { render } from "ink";
