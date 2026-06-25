@@ -23,7 +23,8 @@ import { join, basename } from "node:path";
 import type { GitData, GitHostKind, GitRepo } from "./types.js";
 
 const run = promisify(execFile);
-const MAX_REPOS = 24;
+const MAX_REPOS = 48; // hard cap on how many repos we'll stat per refresh
+const SHOW_REPOS = 10; // of those, only the most-recently-committed are reported
 const CONCURRENCY = 8;
 
 export class GitCollector {
@@ -31,7 +32,7 @@ export class GitCollector {
   private last: GitData;
 
   constructor(private roots: string[]) {
-    this.last = { roots, repos: [], truncated: false };
+    this.last = { roots, repos: [], total: 0, truncated: false };
   }
 
   async read(): Promise<GitData> {
@@ -39,7 +40,6 @@ export class GitCollector {
     this.inflight = true;
     try {
       const dirs = await this.discover();
-      const truncated = dirs.length > MAX_REPOS;
       const pick = dirs.slice(0, MAX_REPOS);
 
       const repos: GitRepo[] = [];
@@ -48,9 +48,20 @@ export class GitCollector {
         const results = await Promise.all(batch.map((d) => readRepo(d).catch(() => null)));
         for (const r of results) if (r) repos.push(r);
       }
-      repos.sort((a, b) => a.name.localeCompare(b.name));
+      // Only repos that need attention — uncommitted changes, or commits to
+      // push/pull — most recently committed first, capped at SHOW_REPOS. Repos
+      // that are clean and in sync are counted but not listed.
+      const pending = repos
+        .filter((r) => r.dirty || r.ahead > 0 || r.behind > 0)
+        .sort((a, b) => b.lastCommit - a.lastCommit || a.name.localeCompare(b.name));
+      const shown = pending.slice(0, SHOW_REPOS);
 
-      this.last = { roots: this.roots, repos, truncated };
+      this.last = {
+        roots: this.roots,
+        repos: shown,
+        total: repos.length,
+        truncated: pending.length > shown.length,
+      };
       return this.last;
     } catch {
       return this.last;
@@ -88,9 +99,12 @@ export class GitCollector {
 }
 
 async function readRepo(dir: string): Promise<GitRepo> {
-  const [statusRes, urlRes] = await Promise.all([
+  const [statusRes, urlRes, dateRes] = await Promise.all([
     run("git", ["-C", dir, "status", "--porcelain=v2", "--branch"], { maxBuffer: 1 << 20 }),
     run("git", ["-C", dir, "remote", "get-url", "origin"], { maxBuffer: 1 << 16 }).catch(() => ({
+      stdout: "",
+    })),
+    run("git", ["-C", dir, "log", "-1", "--format=%ct"], { maxBuffer: 1 << 16 }).catch(() => ({
       stdout: "",
     })),
   ]);
@@ -116,7 +130,8 @@ async function readRepo(dir: string): Promise<GitRepo> {
   }
 
   const { host, hostKind } = classifyHost(urlRes.stdout.trim());
-  return { name: basename(dir), path: dir, branch, ahead, behind, detached, dirty, host, hostKind };
+  const lastCommit = Number(dateRes.stdout.trim()) || 0;
+  return { name: basename(dir), path: dir, branch, ahead, behind, detached, dirty, host, hostKind, lastCommit };
 }
 
 /** Pull the hostname out of an origin URL and bucket it into a known host. */

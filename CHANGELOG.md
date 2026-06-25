@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] — 2026-06-24
+## [2.0.0] — 2026-06-24
 
 ### Added
 - **GIT panel reports the host of each repo.** A new `HOST` column tags every
@@ -13,17 +13,31 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **zgit server listing.** A footer line in the GIT panel lists the bare repos on
   the self-hosted zgit Docker container (`docker exec -u git <container> ls
   /repos`). Local-only, no network; fails soft (the line is hidden) when Docker
-  or the container is unavailable. Container name via `--zgit` / config
-  `zgitContainer` (default `zgit`).
+  or the container is unavailable. Container name via config `zgitContainer`
+  (default `zgit`).
+- **GIT report and PROCESSES sit side by side** on wide terminals (the GIT
+  report takes the larger share); they stack when the terminal is too narrow.
 
 ### Changed
-- **The GIT panel is now cwd-independent.** It scans a fixed, configured list of
-  paths instead of the parent of the current directory, so the report is the
-  same in every terminal/tab. Each `--repos` entry may be a repo itself or a
+- **The GIT panel is now cwd-independent.** It scans a fixed list of paths from
+  config (`repoRoots`) instead of the parent of the current directory, so the
+  report is identical in every terminal/tab. Each entry may be a repo itself or a
   folder whose subdirectories are repos; entries are merged and de-duplicated.
-- `--repos` now accepts a comma-separated list and is persisted to
-  `~/.config/lattice/config.json` (`repoRoots`). With no flag and no saved list,
-  it falls back to the parent of the cwd (previous behaviour).
+- **The GIT panel lists only repos that need attention** — uncommitted changes,
+  or commits to push (ahead) / pull (behind) — most recently committed first,
+  capped at the top 10. Clean, in-sync repos are not listed; when none are
+  pending it shows `✓ all N repos up to date`. Uncommitted changes are now
+  labelled **uncommitted** (was "dirty"), with `↑`/`↓` for push/pull.
+
+### Removed
+- **Power monitoring and the sudo prompt.** lattice no longer runs
+  `powermetrics`, so it never asks for a password on launch. Temperatures and fan
+  speed are unaffected — they still come from the native SMC helper (no sudo).
+- **All CLI flags.** lattice now takes no options: it always runs the full
+  dashboard using the settings saved in `~/.config/lattice/config.json` (language
+  is chosen on first run; theme, icons, repo list and zgit container are read
+  from the file). Removed `--no-power`, `--no-vtex`, `--repos`, `--zgit`,
+  `--interval`, `--procs`, `--icons`, `--lang` and `--theme`.
 
 ## [1.0.0] — 2026-06-24
 

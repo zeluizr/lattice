@@ -2,7 +2,7 @@
 import type { Translation } from "./en.js";
 
 export const ptBR: Translation = {
-  "subtitle": "sistema · gpu · energia",
+  "subtitle": "sistema · gpu · git",
   "paused": "PAUSADO",
 
   "panel.cpu": "CPU",
@@ -48,8 +48,8 @@ export const ptBR: Translation = {
   "git.branch": "BRANCH",
   "git.state": "ESTADO",
   "git.host": "HOST",
-  "git.clean": "limpo",
-  "git.dirty": "sujo",
+  "git.uncommitted": "sem commit",
+  "git.allClear": "✓ todos os {n} repos em dia",
   "git.local": "local",
   "git.server": "— servidor zgit ({container}): {list} ({n})",
   "git.serverEmpty": "— servidor zgit ({container}): sem repos",
@@ -58,8 +58,6 @@ export const ptBR: Translation = {
   "gpu.mem": "mem {used}/{alloc}",
 
   "temp.unavailable": "sensores indisponíveis",
-  "temp.waitingSudo": "aguardando sudo",
-  "temp.needsSudo": "energia: requer sudo",
 
   "spark.collecting": "coletando…",
   "spark.lastMin": "último min: {range}",
@@ -89,8 +87,4 @@ export const ptBR: Translation = {
   "key.pause": "Pausar",
   "key.faster": "Mais rápido",
   "key.slower": "Mais lento",
-
-  "cli.sudoNeed": "lattice precisa de sudo para ler energia (powermetrics).",
-  "cli.sudoFail": "sudo indisponível — seguindo sem dados de energia.",
-  "cli.sudoCancel": "cancelado.",
 };

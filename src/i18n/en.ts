@@ -1,6 +1,6 @@
 /** English (base locale). Every other locale must implement these exact keys. */
 export const en = {
-  "subtitle": "system · gpu · power",
+  "subtitle": "system · gpu · git",
   "paused": "PAUSED",
 
   "panel.cpu": "CPU",
@@ -46,8 +46,8 @@ export const en = {
   "git.branch": "BRANCH",
   "git.state": "STATE",
   "git.host": "HOST",
-  "git.clean": "clean",
-  "git.dirty": "dirty",
+  "git.uncommitted": "uncommitted",
+  "git.allClear": "✓ all {n} repos up to date",
   "git.local": "local",
   "git.server": "— zgit server ({container}): {list} ({n})",
   "git.serverEmpty": "— zgit server ({container}): no repos",
@@ -56,8 +56,6 @@ export const en = {
   "gpu.mem": "mem {used}/{alloc}",
 
   "temp.unavailable": "sensors unavailable",
-  "temp.waitingSudo": "waiting for sudo",
-  "temp.needsSudo": "power: requires sudo",
 
   "spark.collecting": "collecting…",
   "spark.lastMin": "last min: {range}",
@@ -87,10 +85,6 @@ export const en = {
   "key.pause": "Pause",
   "key.faster": "Faster",
   "key.slower": "Slower",
-
-  "cli.sudoNeed": "lattice needs sudo to read power (powermetrics).",
-  "cli.sudoFail": "sudo unavailable — continuing without power data.",
-  "cli.sudoCancel": "cancelled.",
 } as const;
 
 export type TranslationKey = keyof typeof en;

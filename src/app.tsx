@@ -7,19 +7,17 @@ import { GitCollector } from "./collectors/git.js";
 import { ZgitCollector } from "./collectors/zgit.js";
 import { readGpu } from "./collectors/gpu.js";
 import { readSensors } from "./collectors/sensors.js";
-import { PowerCollector } from "./collectors/power.js";
 import { TokenCollector } from "./collectors/tokens.js";
 import { readVtex } from "./collectors/vtex.js";
 import { coreCell, fmtTok, humanBytes, humanRate, sparkline, statusLevel } from "./format.js";
 import type { Palette } from "./theme.js";
 import type { IconName } from "./icons.js";
-import type { Lang, Translator } from "./i18n/index.js";
+import type { Translator } from "./i18n/index.js";
 import type {
   DisksData,
   GitData,
   GitRepo,
   GpuData,
-  PowerData,
   SensorsData,
   SystemData,
   TokensData,
@@ -31,17 +29,15 @@ export interface AppProps {
   t: Translator;
   pal: Palette;
   icon: (name: IconName) => string;
-  lang: Lang;
-  usePower: boolean;
-  useVtex: boolean;
   repoRoots: string[];
   zgitContainer: string;
-  interval: number;
-  topN: number;
 }
 
 const MAX_HIST = 60;
 const push = (h: number[], v: number): number[] => [...h, v].slice(-MAX_HIST);
+
+const DEFAULT_INTERVAL = 1; // seconds between refreshes (adjust at runtime with +/-)
+const PROCS = 12; // number of top processes to list
 
 function timeStr(): string {
   const d = new Date();
@@ -49,7 +45,7 @@ function timeStr(): string {
 }
 
 export function App(props: AppProps): React.JSX.Element {
-  const { t, pal, icon, usePower, useVtex, repoRoots, zgitContainer, topN } = props;
+  const { t, pal, icon, repoRoots, zgitContainer } = props;
   const { exit } = useApp();
 
   const [sys, setSys] = useState<SystemData | null>(null);
@@ -58,7 +54,6 @@ export function App(props: AppProps): React.JSX.Element {
   const [zgit, setZgit] = useState<ZgitServerData | null>(null);
   const [gpu, setGpu] = useState<GpuData | null>(null);
   const [sensors, setSensors] = useState<SensorsData | null>(null);
-  const [power, setPower] = useState<PowerData | null>(null);
   const [tokens, setTokens] = useState<TokensData | null>(null);
   const [vtex, setVtex] = useState<VtexData | null>(null);
 
@@ -69,7 +64,7 @@ export function App(props: AppProps): React.JSX.Element {
   const [hTemp, setHTemp] = useState<number[]>([]);
 
   const [paused, setPaused] = useState(false);
-  const [interval, setIntervalState] = useState(props.interval);
+  const [interval, setIntervalState] = useState(DEFAULT_INTERVAL);
   const [now, setNow] = useState(timeStr());
   const [cols, setCols] = useState(process.stdout.columns || 100);
 
@@ -78,7 +73,6 @@ export function App(props: AppProps): React.JSX.Element {
   const gitRef = useRef<GitCollector | null>(null);
   const zgitRef = useRef<ZgitCollector | null>(null);
   const tokRef = useRef<TokenCollector | null>(null);
-  const powerRef = useRef<PowerCollector | null>(null);
   const pausedRef = useRef(false);
   const mounted = useRef(true);
 
@@ -89,15 +83,11 @@ export function App(props: AppProps): React.JSX.Element {
   // ----- init collectors + power subprocess + clock -------------------------
   useEffect(() => {
     mounted.current = true;
-    sysRef.current = new SystemCollector(topN);
+    sysRef.current = new SystemCollector(PROCS);
     disksRef.current = new DisksCollector();
     gitRef.current = new GitCollector(repoRoots);
     zgitRef.current = new ZgitCollector(zgitContainer);
     tokRef.current = new TokenCollector();
-    if (usePower) {
-      powerRef.current = new PowerCollector(Math.round(props.interval * 1000));
-      powerRef.current.start();
-    }
 
     const clock = setInterval(() => mounted.current && setNow(timeStr()), 1000);
     const onResize = () => setCols(process.stdout.columns || 100);
@@ -106,7 +96,6 @@ export function App(props: AppProps): React.JSX.Element {
       mounted.current = false;
       clearInterval(clock);
       process.stdout.off("resize", onResize);
-      powerRef.current?.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -120,13 +109,11 @@ export function App(props: AppProps): React.JSX.Element {
       readGpu(),
       readSensors(),
     ]);
-    const p = powerRef.current ? powerRef.current.read() : null;
     if (!mounted.current) return;
     setSys(s);
     setDisks(d);
     setGpu(g);
     setSensors(st);
-    setPower(p);
     setHCpu((h) => push(h, s.cpuTotal));
     setHMem((h) => push(h, s.memPercent));
     setHNet((h) => push(h, (s.netRecvBps + s.netSentBps) / 1024 / 1024));
@@ -139,7 +126,7 @@ export function App(props: AppProps): React.JSX.Element {
     if (pausedRef.current || !tokRef.current) return;
     const [tk, vx, gt, zg] = await Promise.all([
       tokRef.current.read(),
-      useVtex ? readVtex() : Promise.resolve(null),
+      readVtex(),
       gitRef.current ? gitRef.current.read() : Promise.resolve(null),
       zgitRef.current ? zgitRef.current.read() : Promise.resolve(null),
     ]);
@@ -148,7 +135,7 @@ export function App(props: AppProps): React.JSX.Element {
     setVtex(vx);
     setGit(gt);
     setZgit(zg);
-  }, [useVtex]);
+  }, []);
 
   useEffect(() => {
     refreshData();
@@ -164,7 +151,6 @@ export function App(props: AppProps): React.JSX.Element {
 
   useInput((input) => {
     if (input === "q") {
-      powerRef.current?.stop();
       exit();
     } else if (input === "p") {
       setPaused((p) => !p);
@@ -183,6 +169,13 @@ export function App(props: AppProps): React.JSX.Element {
   const inner = (w: number) => Math.max(6, w - 4); // minus border (2) + padding (2)
   const w2 = inner(col2);
   const w3 = inner(col3);
+
+  // GIT + PROCESSES share a row on wide terminals; they stack when it's too
+  // narrow to split. GIT's columns are fixed-width, so it takes only what it
+  // needs (clamped) and PROCESSES inherits the slack — handy for long names.
+  const sideBySide = cols >= 92;
+  const gitW = Math.max(48, Math.min(58, Math.floor((cols - 2 * m) * 0.46)));
+  const procW = cols - 2 * m - gitW;
 
   const statColor = (lvl: "ok" | "warn" | "crit"): string =>
     lvl === "ok" ? pal.green : lvl === "warn" ? pal.yellow : pal.red;
@@ -213,8 +206,9 @@ export function App(props: AppProps): React.JSX.Element {
   const util = gpu?.utilPct ?? 0;
   const diskRows = disks?.disks ?? [];
   const gitRepos = git?.repos ?? [];
+  const gitTotal = git?.total ?? 0;
   const zgitServer = zgit?.available ? zgit : null;
-  const showGit = gitRepos.length > 0 || !!zgitServer;
+  const showGit = gitTotal > 0 || !!zgitServer;
 
   const hostLabel = (r: GitRepo): string =>
     r.hostKind === "github"
@@ -240,12 +234,9 @@ export function App(props: AppProps): React.JSX.Element {
   const web = tokens && (tokens.webSearch || tokens.webFetch) ? ` · web ${tokens.webSearch}/${tokens.webFetch}` : "";
   const models = modelParts.length ? modelParts.join(" · ") + modelExtra + web : t("tokens.none");
 
-  const powerParts: string[] = [];
-  if (power && (power.cpuW != null || power.gpuW != null))
-    powerParts.push(`${icon("power")} ${(power.cpuW ?? 0).toFixed(1)}+${(power.gpuW ?? 0).toFixed(1)}W`);
-  else if (usePower) powerParts.push(`${icon("power")} ${t("temp.waitingSudo")}`);
-  if (sensors?.fans?.length) powerParts.push(`${icon("fan")} ${sensors.fans[0].rpm.toFixed(0)} rpm`);
-  const tempLine2 = powerParts.length ? powerParts.join("  ·  ") : t("temp.needsSudo");
+  const tempLine2 = sensors?.fans?.length
+    ? `${icon("fan")} ${sensors.fans[0].rpm.toFixed(0)} rpm`
+    : "";
 
   return (
     <Box flexDirection="column" width={cols}>
@@ -395,12 +386,12 @@ export function App(props: AppProps): React.JSX.Element {
         )}
       </Box>
 
-      {/* row 3: TOKENS | VTEX (VTEX optional via --no-vtex) */}
+      {/* row 3: TOKENS | VTEX */}
       <Box flexDirection="row">
         <Panel
           title={`${icon("tokens")} ${t("panel.tokens")}`}
           color={pal.pink}
-          width={useVtex ? col2 : fullW}
+          width={col2}
         >
           <Text wrap="truncate">
             {t("tokens.spent", { cost: (tokens?.cost ?? 0).toFixed(2), messages: tokens?.messages ?? 0 })}
@@ -420,7 +411,6 @@ export function App(props: AppProps): React.JSX.Element {
           </Text>
         </Panel>
 
-        {useVtex && (
         <Panel title={`${icon("vtex")} ${t("panel.vtex")}`} color={pal.purple} width={col2}>
           {!vtex ? (
             <Text color={pal.comment}>{t("spark.collecting")}</Text>
@@ -459,73 +449,92 @@ export function App(props: AppProps): React.JSX.Element {
             </>
           )}
         </Panel>
-        )}
       </Box>
 
-      {/* git: a fixed, cwd-independent report of every configured repo, each
-          tagged with where its origin lives (GitHub vs the zgit server), plus a
-          summary of the bare repos on the zgit server itself. */}
-      {showGit && (
-        <Box flexDirection="column" borderStyle="round" borderColor={pal.green} paddingX={1} marginRight={1} width={fullW}>
-          <Text color={pal.green} bold wrap="truncate">
-            {icon("git")} {t("panel.git")}
-            {git?.truncated ? <Text color={pal.comment}> (+)</Text> : null}
-          </Text>
-          {gitRepos.length > 0 && (
-            <Text color={pal.purple} bold wrap="truncate">
-              {t("git.repo").padEnd(20)}
-              {t("git.branch").padEnd(18)}
-              {t("git.state").padEnd(10)}
-              {t("git.host")}
+      {/* GIT report + PROCESSES, side by side on wide terminals (stacked when
+          narrow). The GIT report — a fixed, cwd-independent list of every repo
+          tagged by host (GitHub vs the zgit server) plus the server's own bare
+          repos — is the hero of the row; processes sit quietly beside it. */}
+      <Box flexDirection={sideBySide ? "row" : "column"} alignItems="flex-start">
+        {showGit && (
+          <Box
+            flexDirection="column"
+            borderStyle="round"
+            borderColor={pal.green}
+            paddingX={1}
+            marginRight={1}
+            width={sideBySide ? gitW : fullW}
+          >
+            <Text color={pal.green} bold wrap="truncate">
+              {icon("git")} {t("panel.git")}
+              {git?.truncated ? <Text color={pal.comment}> (+)</Text> : null}
             </Text>
-          )}
-          {gitRepos.map((r) => {
-            const label = r.detached ? "(detached)" : r.branch;
-            return (
-              <Text key={r.path} wrap="truncate">
-                {r.name.slice(0, 19).padEnd(20)}
-                {label.slice(0, 17).padEnd(18)}
-                <Text color={r.dirty ? pal.yellow : pal.green}>●</Text>
-                {` ${r.dirty ? t("git.dirty") : t("git.clean")}`.padEnd(9)}
-                <Text color={hostColor(r)}>{hostLabel(r).slice(0, 10).padEnd(10)}</Text>
-                {r.ahead > 0 ? <Text color={pal.comment}> ↑{r.ahead}</Text> : null}
-                {r.behind > 0 ? <Text color={pal.comment}> ↓{r.behind}</Text> : null}
+            {gitRepos.length > 0 ? (
+              <Text color={pal.purple} bold wrap="truncate">
+                {t("git.repo").padEnd(18)}
+                {t("git.branch").padEnd(12)}
+                {t("git.host").padEnd(8)}
+                {t("git.state")}
               </Text>
-            );
-          })}
-          {zgitServer && (
-            <Text color={pal.comment} wrap="truncate">
-              {zgitServer.repos.length
-                ? t("git.server", {
-                    container: zgitServer.container,
-                    list: zgitServer.repos.join(", "),
-                    n: zgitServer.repos.length,
-                  })
-                : t("git.serverEmpty", { container: zgitServer.container })}
-            </Text>
-          )}
-        </Box>
-      )}
+            ) : gitTotal > 0 ? (
+              <Text color={pal.green} wrap="truncate">
+                {t("git.allClear", { n: gitTotal })}
+              </Text>
+            ) : null}
+            {gitRepos.map((r) => {
+              const label = r.detached ? "(detached)" : r.branch;
+              return (
+                <Text key={r.path} wrap="truncate">
+                  {r.name.slice(0, 17).padEnd(18)}
+                  {label.slice(0, 11).padEnd(12)}
+                  <Text color={hostColor(r)}>{hostLabel(r).slice(0, 7).padEnd(8)}</Text>
+                  <Text color={r.dirty ? pal.yellow : pal.orange}>●</Text>
+                  {r.dirty ? <Text color={pal.yellow}> {t("git.uncommitted")}</Text> : null}
+                  {r.ahead > 0 ? <Text color={pal.cyan}> ↑{r.ahead}</Text> : null}
+                  {r.behind > 0 ? <Text color={pal.orange}> ↓{r.behind}</Text> : null}
+                </Text>
+              );
+            })}
+            {zgitServer && (
+              <Text color={pal.comment} wrap="truncate">
+                {zgitServer.repos.length
+                  ? t("git.server", {
+                      container: zgitServer.container,
+                      list: zgitServer.repos.join(", "),
+                      n: zgitServer.repos.length,
+                    })
+                  : t("git.serverEmpty", { container: zgitServer.container })}
+              </Text>
+            )}
+          </Box>
+        )}
 
-      {/* processes */}
-      <Box flexDirection="column" borderStyle="round" borderColor={pal.comment} paddingX={1} marginRight={1} width={fullW}>
-        <Text color={pal.comment} bold>
-          {icon("proc")} {t("panel.procs")}
-        </Text>
-        <Text color={pal.purple} bold wrap="truncate">
-          {t("proc.cpu").padEnd(6)}
-          {t("proc.mem").padEnd(9)}
-          {t("proc.pid").padEnd(8)}
-          {t("proc.name")}
-        </Text>
-        {(sys?.procs ?? []).map((p) => (
-          <Text key={p.pid} wrap="truncate">
-            {`${p.cpu.toFixed(0)}%`.padEnd(6)}
-            {humanBytes(p.rss).padEnd(9)}
-            {String(p.pid).padEnd(8)}
-            {p.name.slice(0, 30)}
+        <Box
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={pal.comment}
+          paddingX={1}
+          marginRight={1}
+          width={sideBySide && showGit ? procW : fullW}
+        >
+          <Text color={pal.comment} bold>
+            {icon("proc")} {t("panel.procs")}
           </Text>
-        ))}
+          <Text color={pal.purple} bold wrap="truncate">
+            {t("proc.cpu").padEnd(6)}
+            {t("proc.mem").padEnd(9)}
+            {t("proc.pid").padEnd(7)}
+            {t("proc.name")}
+          </Text>
+          {(sys?.procs ?? []).map((p) => (
+            <Text key={p.pid} wrap="truncate">
+              {`${p.cpu.toFixed(0)}%`.padEnd(6)}
+              {humanBytes(p.rss).padEnd(9)}
+              {String(p.pid).padEnd(7)}
+              {p.name.slice(0, 40)}
+            </Text>
+          ))}
+        </Box>
       </Box>
 
       {/* footer */}

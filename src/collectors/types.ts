@@ -50,12 +50,14 @@ export interface GitRepo {
   dirty: boolean; // has uncommitted changes
   host: string; // hostname parsed from origin URL ("" when no remote)
   hostKind: GitHostKind;
+  lastCommit: number; // unix seconds of the last commit (0 when unknown); drives the "most recent" ranking
 }
 
 export interface GitData {
   roots: string[]; // the configured folders/repos that were scanned
-  repos: GitRepo[];
-  truncated: boolean; // more repos than MAX_REPOS were found
+  repos: GitRepo[]; // only repos needing attention (uncommitted / ahead / behind), most recent first
+  total: number; // total repos scanned (incl. the clean, in-sync ones not listed)
+  truncated: boolean; // more pending repos than are shown
 }
 
 /** Bare repos living on the self-hosted zgit server (a Docker container). */
@@ -94,15 +96,6 @@ export interface BatteryData {
   cycles?: number | null;
   health?: number | null;
   tempC?: number | null;
-}
-
-export interface PowerData {
-  cpuW: number | null;
-  gpuW: number | null;
-  aneW: number | null;
-  packageW: number | null;
-  gpuFreqMhz: number | null;
-  thermal: string | null;
 }
 
 export interface TokenModel {
