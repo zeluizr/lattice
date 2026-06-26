@@ -1,18 +1,14 @@
-<div align="center">
-
 # ◇ lattice
 
 **Dashboard de terminal en tiempo real para macOS Apple Silicon.**
 
 GPU · temperaturas y ventiladores · I/O por disco (incl. `/Volumes`) · red · memoria ·
-procesos · costo de tokens de IA · estado de git y VTEX. Un monitor enfocado: cada
-métrica se lee localmente, nada sale de tu Mac.
+procesos · costo de tokens de IA · estado de git y VTEX. Un monitor enfocado: cada métrica
+se lee localmente, nada sale de tu Mac.
 
 [![npm](https://badgen.net/npm/v/@zeluizr/lattice?color=9580FF)](https://www.npmjs.com/package/@zeluizr/lattice)
 [![node](https://badgen.net/npm/node/@zeluizr/lattice?color=9580FF)](https://nodejs.org)
 [![licencia](https://badgen.net/npm/license/@zeluizr/lattice?label=licencia&color=9580FF)](./LICENSE)
-
-</div>
 
 ---
 
@@ -37,8 +33,8 @@ npx @zeluizr/lattice
 lattice
 ```
 
-No tiene flags y **no necesita sudo**: corre el dashboard completo. En el primer arranque
-te pregunta el idioma (English · Español · Português) y lo recuerda. El resto —tema, íconos,
+No tiene flags y **no necesita sudo**: corre el dashboard completo. En el primer arranque te
+pregunta el idioma (English · Español · Português) y lo recuerda. El resto —tema, íconos,
 lista de repos de git, contenedor zgit— vive en `~/.config/lattice/config.json`.
 
 ### Atajos
@@ -71,6 +67,4 @@ lista de repos de git, contenedor zgit— vive en `~/.config/lattice/config.json
 
 lattice es **open source** bajo licencia [MIT](./LICENSE).
 
-<div align="center">
-<sub>Hecho con mucho amor y café por <a href="https://github.com/zeluizr">zeluizr</a> ☕</sub>
-</div>
+_Hecho con amor y café por [zeluizr](https://github.com/zeluizr) y con la ayuda de [Claude](https://claude.ai/referral/Cz_UimA0NQ) ☕_
